@@ -1,7 +1,10 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using System.Collections.Generic;
+using System;
+using System.Globalization;
+using NuGet.Common;
+using NuGet.Configuration;
 
 namespace NuGet.Packaging.Signing
 {
@@ -41,34 +44,34 @@ namespace NuGet.Packaging.Signing
         public bool AllowNoTimestamp { get; }
 
         /// <summary>
-        /// Always verify the countersignature if present
-        /// </summary>
-        public bool AlwaysVerifyCountersignature { get; }
-
-        /// <summary>
         /// Treat unknown revocation status as a warning instead of an error during verification.
         /// </summary>
         public bool AllowUnknownRevocation { get; }
 
         /// <summary>
-        /// Allow an empty or null RepositoryCertificateList.
+        /// Report unknown revocation status.
         /// </summary>
-        public bool AllowNoRepositoryCertificateList { get; }
+        public bool ReportUnknownRevocation { get; }
 
         /// <summary>
-        /// Allow an empty or null ClientCertificateList.
+        /// Gets the verification target(s).
         /// </summary>
-        public bool AllowNoClientCertificateList { get; }
+        public VerificationTarget VerificationTarget { get; }
 
         /// <summary>
-        /// Allowlist of repository certificates hashes.
+        /// Gets the placement of verification target(s).
         /// </summary>
-        public IReadOnlyList<VerificationAllowListEntry> RepositoryCertificateList { get; }
+        public SignaturePlacement SignaturePlacement { get; }
 
         /// <summary>
-        /// Allowlist of client side certificate hashes.
+        /// Gets the repository countersignature verification behavior.
         /// </summary>
-        public IReadOnlyList<VerificationAllowListEntry> ClientCertificateList { get; }
+        public SignatureVerificationBehavior RepositoryCountersignatureVerificationBehavior { get; }
+
+        /// <summary>
+        /// Gets how the revocation verification should be performed.
+        /// </summary>
+        public RevocationMode RevocationMode { get; }
 
         public SignedPackageVerifierSettings(
             bool allowUnsigned,
@@ -78,39 +81,68 @@ namespace NuGet.Packaging.Signing
             bool allowMultipleTimestamps,
             bool allowNoTimestamp,
             bool allowUnknownRevocation,
-            bool allowNoRepositoryCertificateList,
-            bool allowNoClientCertificateList,
-            bool alwaysVerifyCountersignature)
-            : this (
-                  allowUnsigned,
-                  allowIllegal,
-                  allowUntrusted,
-                  allowIgnoreTimestamp,
-                  allowMultipleTimestamps,
-                  allowNoTimestamp,
-                  allowUnknownRevocation,
-                  allowNoRepositoryCertificateList,
-                  allowNoClientCertificateList,
-                  alwaysVerifyCountersignature,
-                  repoAllowListEntries: null,
-                  clientAllowListEntries: null)
+            bool reportUnknownRevocation,
+            VerificationTarget verificationTarget,
+            SignaturePlacement signaturePlacement,
+            SignatureVerificationBehavior repositoryCountersignatureVerificationBehavior,
+            RevocationMode revocationMode)
         {
-        }
+            if (!Enum.IsDefined(typeof(VerificationTarget), verificationTarget))
+            {
+                throw new ArgumentException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.UnrecognizedEnumValue,
+                        verificationTarget),
+                    nameof(verificationTarget));
+            }
 
-        public SignedPackageVerifierSettings(
-            bool allowUnsigned,
-            bool allowIllegal,
-            bool allowUntrusted,
-            bool allowIgnoreTimestamp,
-            bool allowMultipleTimestamps,
-            bool allowNoTimestamp,
-            bool allowUnknownRevocation,
-            bool allowNoRepositoryCertificateList,
-            bool allowNoClientCertificateList,
-            bool alwaysVerifyCountersignature,
-            IReadOnlyList<VerificationAllowListEntry> repoAllowListEntries,
-            IReadOnlyList<VerificationAllowListEntry> clientAllowListEntries)
-        {
+            if (!Enum.IsDefined(typeof(SignaturePlacement), signaturePlacement))
+            {
+                throw new ArgumentException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.UnrecognizedEnumValue,
+                        signaturePlacement),
+                    nameof(signaturePlacement));
+            }
+
+            if (!Enum.IsDefined(typeof(SignatureVerificationBehavior), repositoryCountersignatureVerificationBehavior))
+            {
+                throw new ArgumentException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.UnrecognizedEnumValue,
+                        repositoryCountersignatureVerificationBehavior),
+                    nameof(repositoryCountersignatureVerificationBehavior));
+            }
+
+            if ((signaturePlacement.HasFlag(SignaturePlacement.Countersignature) && !verificationTarget.HasFlag(VerificationTarget.Repository)) ||
+                (signaturePlacement == SignaturePlacement.Countersignature && verificationTarget != VerificationTarget.Repository))
+            {
+                throw new ArgumentException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.InvalidArgumentCombination,
+                        nameof(verificationTarget),
+                        nameof(signaturePlacement)),
+                    nameof(signaturePlacement));
+            }
+
+            if ((repositoryCountersignatureVerificationBehavior == SignatureVerificationBehavior.Never) ==
+                    signaturePlacement.HasFlag(SignaturePlacement.Countersignature) ||
+                ((repositoryCountersignatureVerificationBehavior == SignatureVerificationBehavior.Always) &&
+                    !signaturePlacement.HasFlag(SignaturePlacement.Countersignature)))
+            {
+                throw new ArgumentException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.InvalidArgumentCombination,
+                        nameof(signaturePlacement),
+                        nameof(repositoryCountersignatureVerificationBehavior)),
+                    nameof(repositoryCountersignatureVerificationBehavior));
+            }
+
             AllowUnsigned = allowUnsigned;
             AllowIllegal = allowIllegal;
             AllowUntrusted = allowUntrusted;
@@ -118,19 +150,17 @@ namespace NuGet.Packaging.Signing
             AllowMultipleTimestamps = allowMultipleTimestamps;
             AllowNoTimestamp = allowNoTimestamp;
             AllowUnknownRevocation = allowUnknownRevocation;
-            AllowNoRepositoryCertificateList = allowNoRepositoryCertificateList;
-            AllowNoClientCertificateList = allowNoClientCertificateList;
-            AlwaysVerifyCountersignature = alwaysVerifyCountersignature;
-            RepositoryCertificateList = repoAllowListEntries;
-            ClientCertificateList = clientAllowListEntries;
+            ReportUnknownRevocation = reportUnknownRevocation;
+            VerificationTarget = verificationTarget;
+            SignaturePlacement = signaturePlacement;
+            RepositoryCountersignatureVerificationBehavior = repositoryCountersignatureVerificationBehavior;
+            RevocationMode = revocationMode;
         }
 
         /// <summary>
         /// Default settings.
         /// </summary>
-        public static SignedPackageVerifierSettings GetDefault(
-            IReadOnlyList<VerificationAllowListEntry> repoAllowListEntries = null,
-            IReadOnlyList<VerificationAllowListEntry> clientAllowListEntries = null)
+        public static SignedPackageVerifierSettings GetDefault()
         {
             return new SignedPackageVerifierSettings(
                 allowUnsigned: true,
@@ -140,19 +170,17 @@ namespace NuGet.Packaging.Signing
                 allowMultipleTimestamps: true,
                 allowNoTimestamp: true,
                 allowUnknownRevocation: true,
-                allowNoRepositoryCertificateList: true,
-                allowNoClientCertificateList: true,
-                alwaysVerifyCountersignature: true,
-                repoAllowListEntries: repoAllowListEntries,
-                clientAllowListEntries: clientAllowListEntries);
+                reportUnknownRevocation: false,
+                verificationTarget: VerificationTarget.All,
+                signaturePlacement: SignaturePlacement.Any,
+                repositoryCountersignatureVerificationBehavior: SignatureVerificationBehavior.IfExistsAndIsNecessary,
+                revocationMode: SettingsUtility.GetRevocationMode());
         }
 
         /// <summary>
-        /// The aceept mode policy.
+        /// The accept mode policy.
         /// </summary>
-        public static SignedPackageVerifierSettings GetAcceptModeDefaultPolicy(
-            IReadOnlyList<VerificationAllowListEntry> repoAllowListEntries = null,
-            IReadOnlyList<VerificationAllowListEntry> clientAllowListEntries = null)
+        public static SignedPackageVerifierSettings GetAcceptModeDefaultPolicy()
         {
             return new SignedPackageVerifierSettings(
                 allowUnsigned: true,
@@ -162,19 +190,17 @@ namespace NuGet.Packaging.Signing
                 allowMultipleTimestamps: true,
                 allowNoTimestamp: true,
                 allowUnknownRevocation: true,
-                allowNoRepositoryCertificateList: true,
-                allowNoClientCertificateList: true,
-                alwaysVerifyCountersignature: false,
-                repoAllowListEntries: repoAllowListEntries,
-                clientAllowListEntries: clientAllowListEntries);
+                reportUnknownRevocation: false,
+                verificationTarget: VerificationTarget.All,
+                signaturePlacement: SignaturePlacement.Any,
+                repositoryCountersignatureVerificationBehavior: SignatureVerificationBehavior.IfExistsAndIsNecessary,
+                revocationMode: SettingsUtility.GetRevocationMode());
         }
 
         /// <summary>
         /// The require mode policy.
         /// </summary>
-        public static SignedPackageVerifierSettings GetRequireModeDefaultPolicy(
-            IReadOnlyList<VerificationAllowListEntry> repoAllowListEntries = null,
-            IReadOnlyList<VerificationAllowListEntry> clientAllowListEntries = null)
+        public static SignedPackageVerifierSettings GetRequireModeDefaultPolicy()
         {
             return new SignedPackageVerifierSettings(
                 allowUnsigned: false,
@@ -184,19 +210,17 @@ namespace NuGet.Packaging.Signing
                 allowMultipleTimestamps: true,
                 allowNoTimestamp: true,
                 allowUnknownRevocation: true,
-                allowNoRepositoryCertificateList: false,
-                allowNoClientCertificateList: false,
-                alwaysVerifyCountersignature: false,
-                repoAllowListEntries: repoAllowListEntries,
-                clientAllowListEntries: clientAllowListEntries);
+                reportUnknownRevocation: true,
+                verificationTarget: VerificationTarget.All,
+                signaturePlacement: SignaturePlacement.Any,
+                repositoryCountersignatureVerificationBehavior: SignatureVerificationBehavior.IfExistsAndIsNecessary,
+                revocationMode: SettingsUtility.GetRevocationMode());
         }
 
         /// <summary>
         /// Default policy for nuget.exe verify --signatures command.
         /// </summary>
-        public static SignedPackageVerifierSettings GetVerifyCommandDefaultPolicy(
-            IReadOnlyList<VerificationAllowListEntry> repoAllowListEntries = null,
-            IReadOnlyList<VerificationAllowListEntry> clientAllowListEntries = null)
+        public static SignedPackageVerifierSettings GetVerifyCommandDefaultPolicy()
         {
             return new SignedPackageVerifierSettings(
                 allowUnsigned: false,
@@ -206,11 +230,11 @@ namespace NuGet.Packaging.Signing
                 allowMultipleTimestamps: true,
                 allowNoTimestamp: true,
                 allowUnknownRevocation: true,
-                allowNoRepositoryCertificateList: true,
-                allowNoClientCertificateList: true,
-                alwaysVerifyCountersignature: true,
-                repoAllowListEntries: repoAllowListEntries,
-                clientAllowListEntries: clientAllowListEntries);
+                reportUnknownRevocation: true,
+                verificationTarget: VerificationTarget.All,
+                signaturePlacement: SignaturePlacement.Any,
+                repositoryCountersignatureVerificationBehavior: SignatureVerificationBehavior.IfExists,
+                revocationMode: SettingsUtility.GetRevocationMode());
         }
     }
 }

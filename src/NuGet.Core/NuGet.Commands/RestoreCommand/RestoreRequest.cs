@@ -17,11 +17,12 @@ namespace NuGet.Commands
     public class RestoreRequest
     {
         public static readonly int DefaultDegreeOfConcurrency = 16;
-        
+
         public RestoreRequest(
             PackageSpec project,
             RestoreCommandProviders dependencyProviders,
             SourceCacheContext cacheContext,
+            ClientPolicyContext clientPolicyContext,
             ILogger log)
         {
 
@@ -29,6 +30,7 @@ namespace NuGet.Commands
             Log = log ?? throw new ArgumentNullException(nameof(log));
             Project = project ?? throw new ArgumentNullException(nameof(project));
             DependencyProviders = dependencyProviders ?? throw new ArgumentNullException(nameof(dependencyProviders));
+            ClientPolicyContext = clientPolicyContext;
 
             ExternalProjects = new List<ExternalProjectReference>();
             CompatibilityProfiles = new HashSet<FrameworkRuntimePair>();
@@ -107,18 +109,11 @@ namespace NuGet.Commands
         public ISet<string> RequestedRuntimes { get; } = new SortedSet<string>(StringComparer.Ordinal);
 
         /// <summary>
-        /// Gets or sets the <see cref="Packaging.PackageSaveMode"/>.
-        /// </summary>
-        public PackageSaveMode PackageSaveMode { get; set; } = PackageSaveMode.Defaultv3;
-
-        /// <summary>
         /// These Runtime Ids will be used if <see cref="RequestedRuntimes"/> and the project runtimes
         /// are both empty.
         /// </summary>
         /// <remarks>RIDs are case sensitive.</remarks>
         public ISet<string> FallbackRuntimes { get; } = new SortedSet<string>(StringComparer.Ordinal);
-
-        public XmlDocFileSaveMode XmlDocFileSaveMode { get; set; } = PackageExtractionBehavior.XmlDocFileSaveMode;
 
         /// <summary>
         /// This contains resources that are shared between project restores.
@@ -141,7 +136,6 @@ namespace NuGet.Commands
         /// </summary>
         public string MSBuildProjectExtensionsPath { get; set; }
 
-        
         /// <summary>
         /// Compatibility options
         /// </summary>
@@ -153,15 +147,23 @@ namespace NuGet.Commands
         public bool HideWarningsAndErrors { get; set; } = false;
 
         /// <summary>
-        /// Package Signature verifier
-        /// </summary>
-        public IPackageSignatureVerifier PackageSignatureVerifier { get; set; } = new PackageSignatureVerifier(SignatureVerificationProviderFactory.GetSignatureVerificationProviders());
+        /// Gets or sets the <see cref="Packaging.PackageSaveMode"/>. 
+        /// </summary> 
+        public PackageSaveMode PackageSaveMode { get; set; } = PackageSaveMode.Defaultv3;
 
-        /// <summary>
-        /// SignedPackageVerifierSettings to be used when verifying signed packages.
-        /// </summary>
-        public SignedPackageVerifierSettings SignedPackageVerifierSettings { get; set; } = SignedPackageVerifierSettings.GetDefault();
+        public XmlDocFileSaveMode XmlDocFileSaveMode { get; set; } = PackageExtractionBehavior.XmlDocFileSaveMode;
+
+        public ClientPolicyContext ClientPolicyContext { get; }
+
+        /// <remarks>
+        /// This property should only be used to override the default verifier on tests.
+        /// </remarks>
+        internal IPackageSignatureVerifier SignedPackageVerifier { get; set; }
 
         public Guid ParentId { get; set;}
+
+        public bool IsRestoreOriginalAction { get; set; } = true;
+
+        public bool RestoreForceEvaluate { get; set; }
     }
 }

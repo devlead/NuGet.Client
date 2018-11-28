@@ -17,19 +17,43 @@ namespace Test.Utility
 {
     public class TestSolutionManager : ISolutionManager, IDisposable
     {
+        private static readonly string GLOBAL_PACKAGES_ENV_KEY = "NUGET_PACKAGES";
+
         public List<NuGetProject> NuGetProjects { get; set; } = new List<NuGetProject>();
+
         public INuGetProjectContext NuGetProjectContext { get; set; } = new TestNuGetProjectContext();
+
+        public string NuGetConfigPath { get; set; }
+
+        public string GlobalPackagesFolder { get; set; }
+
+        public string PackagesFolder { get; set; }
 
         public string SolutionDirectory { get; }
 
-        private const string PackagesFolder = "packages";
 
         private TestDirectory _testDirectory;
+
+        private readonly string _configContent = @"<?xml version='1.0' encoding='utf-8'?>
+<configuration>
+  <packageSources>
+    <add key='NuGet.org' value='https://api.nuget.org/v3/index.json' />
+  </packageSources>
+  <config>
+     <add key='globalPackagesFolder' value='{0}' />
+  </config>
+</configuration>";
 
         public TestSolutionManager(bool foo)
         {
             _testDirectory = TestDirectory.Create();
             SolutionDirectory = _testDirectory;
+            NuGetConfigPath = Path.Combine(SolutionDirectory, "NuGet.Config");
+            PackagesFolder = Path.Combine(SolutionDirectory, "packages");
+            GlobalPackagesFolder = Path.Combine(SolutionDirectory, "globalpackages");
+
+            // create nuget config in solution root
+            File.WriteAllText(NuGetConfigPath, string.Format(_configContent, GlobalPackagesFolder));
         }
 
         public TestSolutionManager(string solutionDirectory)
@@ -51,7 +75,7 @@ namespace Test.Utility
                 throw new ArgumentException("Project with " + projectName + " already exists");
             }
 
-            var packagesFolder = Path.Combine(SolutionDirectory, PackagesFolder);
+            var packagesFolder = PackagesFolder;
             projectName = string.IsNullOrEmpty(projectName) ? Guid.NewGuid().ToString() : projectName;
             var projectFullPath = Path.Combine(SolutionDirectory, projectName);
             Directory.CreateDirectory(projectFullPath);
@@ -64,7 +88,7 @@ namespace Test.Utility
             return msBuildNuGetProject;
         }
 
-        public NuGetProject AddBuildIntegratedProject(string projectName = null, NuGetFramework projectTargetFramework = null)
+        public NuGetProject AddBuildIntegratedProject(string projectName = null, NuGetFramework projectTargetFramework = null, JObject json = null)
         {
             var existingProject = Task.Run(async () => await GetNuGetProjectAsync(projectName));
             existingProject.Wait();
@@ -73,12 +97,12 @@ namespace Test.Utility
                 throw new ArgumentException("Project with " + projectName + " already exists");
             }
 
-            var packagesFolder = Path.Combine(SolutionDirectory, PackagesFolder);
             projectName = string.IsNullOrEmpty(projectName) ? Guid.NewGuid().ToString() : projectName;
             var projectFullPath = Path.Combine(SolutionDirectory, projectName);
             Directory.CreateDirectory(projectFullPath);
+
             var projectJsonPath = Path.Combine(projectFullPath, "project.json");
-            CreateConfigJson(projectJsonPath);
+            CreateConfigJson(projectJsonPath, json?.ToString() ?? BasicConfig.ToString());
 
             projectTargetFramework = projectTargetFramework ?? NuGetFramework.Parse("net46");
             var msBuildNuGetProjectSystem = new TestMSBuildNuGetProjectSystem(projectTargetFramework, new TestNuGetProjectContext(),
@@ -87,39 +111,32 @@ namespace Test.Utility
             var projectFilePath = Path.Combine(projectFullPath, $"{msBuildNuGetProjectSystem.ProjectName}.csproj");
             NuGetProject nuGetProject = new ProjectJsonNuGetProject(projectJsonPath, projectFilePath);
             NuGetProjects.Add(nuGetProject);
+
             return nuGetProject;
         }
 
-        private static void CreateConfigJson(string path)
+        private static void CreateConfigJson(string path, string config)
         {
             using (var writer = new StreamWriter(path))
             {
-                writer.Write(BasicConfig.ToString());
+                writer.Write(config);
             }
         }
 
-        private static JObject BasicConfig
+        private static JObject BasicConfig => new JObject
         {
-            get
+            ["dependencies"] = new JObject
             {
-                var json = new JObject();
+                new JProperty("entityframework", "7.0.0-beta-*")
+            },
 
-                var frameworks = new JObject();
-                frameworks["net46"] = new JObject();
+            ["frameworks"] = new JObject
+            {
+                ["net46"] = new JObject()
+            },
 
-                var deps = new JObject();
-                var prop = new JProperty("entityframework", "7.0.0-beta-*");
-                deps.Add(prop);
-
-                json["dependencies"] = deps;
-
-                json["frameworks"] = frameworks;
-
-                json.Add("runtimes", JObject.Parse("{ \"win-anycpu\": { } }"));
-
-                return json;
-            }
-        }
+            ["runtimes"] = JObject.Parse("{ \"win-anycpu\": { } }")
+        };
 
         public Task<NuGetProject> GetNuGetProjectAsync(string nuGetProjectSafeName)
         {
@@ -198,6 +215,9 @@ namespace Test.Utility
                 testDirectory.Dispose();
                 _testDirectory = null;
             }
+
+            // reset environment variable
+            Environment.SetEnvironmentVariable(GLOBAL_PACKAGES_ENV_KEY, null);
         }
 
 #pragma warning restore 0067

@@ -21,11 +21,10 @@ namespace NuGet.Packaging.FuncTest
     [Collection(SigningTestCollection.Name)]
     public class SignatureTests
     {
-        private SigningSpecifications _specification => SigningSpecifications.V1;
-
-        private SigningTestFixture _testFixture;
-        private TrustedTestCert<TestCertificate> _trustedTestCert;
-        private TestCertificate _untrustedTestCertificate;
+        private readonly SigningSpecifications _specification = SigningSpecifications.V1;
+        private readonly SigningTestFixture _testFixture;
+        private readonly TrustedTestCert<TestCertificate> _trustedTestCert;
+        private readonly TestCertificate _untrustedTestCertificate;
 
         public SignatureTests(SigningTestFixture fixture)
         {
@@ -34,54 +33,108 @@ namespace NuGet.Packaging.FuncTest
             _untrustedTestCertificate = _testFixture.UntrustedTestCertificate;
         }
 
-
         [CIOnlyFact]
-        public async Task Verify_WithUntrustedSelfSignedCertificateAndNotAllowUntrustedRoot_FailsAsync()
+        public async Task Verify_WithUntrustedSelfSignedCertificateAndNotAllowUntrusted_FailsAsync()
         {
             var settings = new SignatureVerifySettings(
-                treatIssuesAsErrors: true,
-                allowUntrustedRoot: false,
+                allowIllegal: false,
+                allowUntrusted: false,
                 allowUnknownRevocation: false,
-                logOnSignatureExpired: true);
+                reportUnknownRevocation: true,
+                reportUntrustedRoot: true,
+                revocationMode: RevocationMode.Online);
 
             using (var test = await VerifyTest.CreateAsync(settings, _untrustedTestCertificate.Cert))
             {
-                var issues = new List<SignatureLog>();
                 var result = test.PrimarySignature.Verify(
                     timestamp: null,
                     settings: settings,
                     fingerprintAlgorithm: HashAlgorithmName.SHA256,
-                    certificateExtraStore: test.PrimarySignature.SignedCms.Certificates,
-                    issues: issues);
+                    certificateExtraStore: test.PrimarySignature.SignedCms.Certificates);
 
-                Assert.Equal(SignatureVerificationStatus.Illegal, result.Status);
-                Assert.Equal(1, issues.Count(issue => issue.Level == LogLevel.Error));
+                Assert.Equal(SignatureVerificationStatus.Disallowed, result.Status);
+                Assert.Equal(1, result.Issues.Count(issue => issue.Level == LogLevel.Error));
 
-                AssertUntrustedRoot(issues, LogLevel.Error);
+                AssertUntrustedRoot(result.Issues, LogLevel.Error);
             }
         }
 
         [CIOnlyFact]
-        public async Task Verify_WithUntrustedSelfSignedCertificateAndAllowUntrustedRoot_SucceedsAsync()
+        public async Task Verify_WithUntrustedSelfSignedCertificateAndAllowUntrusted_SucceedsAndWarnsAsync()
         {
             var settings = new SignatureVerifySettings(
-                treatIssuesAsErrors: true,
-                allowUntrustedRoot: true,
+                allowIllegal: false,
+                allowUntrusted: true,
                 allowUnknownRevocation: false,
-                logOnSignatureExpired: true);
+                reportUnknownRevocation: true,
+                reportUntrustedRoot: true,
+                revocationMode: RevocationMode.Online);
 
             using (var test = await VerifyTest.CreateAsync(settings, _untrustedTestCertificate.Cert))
             {
-                var issues = new List<SignatureLog>();
                 var result = test.PrimarySignature.Verify(
                     timestamp: null,
                     settings: settings,
                     fingerprintAlgorithm: HashAlgorithmName.SHA256,
-                    certificateExtraStore: test.PrimarySignature.SignedCms.Certificates,
-                    issues: issues);
+                    certificateExtraStore: test.PrimarySignature.SignedCms.Certificates);
 
                 Assert.Equal(SignatureVerificationStatus.Valid, result.Status);
-                Assert.Equal(0, issues.Count(issue => issue.Level == LogLevel.Error));
+                Assert.Equal(0, result.Issues.Count(issue => issue.Level == LogLevel.Error));
+                Assert.Equal(1, result.Issues.Count(issue => issue.Level == LogLevel.Warning));
+            }
+        }
+
+        [CIOnlyFact]
+        public async Task Verify_WithUntrustedSelfSignedCertificateAndAllowUntrustedAndNotReportUntrustedRoot_SucceedsAsync()
+        {
+            var settings = new SignatureVerifySettings(
+                allowIllegal: false,
+                allowUntrusted: true,
+                allowUnknownRevocation: false,
+                reportUnknownRevocation: true,
+                reportUntrustedRoot: false,
+                revocationMode: RevocationMode.Online);
+
+            using (var test = await VerifyTest.CreateAsync(settings, _untrustedTestCertificate.Cert))
+            {
+                var result = test.PrimarySignature.Verify(
+                    timestamp: null,
+                    settings: settings,
+                    fingerprintAlgorithm: HashAlgorithmName.SHA256,
+                    certificateExtraStore: test.PrimarySignature.SignedCms.Certificates);
+
+                Assert.Equal(SignatureVerificationStatus.Valid, result.Status);
+                Assert.Equal(0, result.Issues.Count(issue => issue.Level == LogLevel.Error));
+                Assert.Equal(0, result.Issues.Count(issue => issue.Level == LogLevel.Warning));
+            }
+        }
+
+        [CIOnlyFact]
+        public async Task GetSigningCertificateFingerprint_WithUnsupportedHashAlgorithm_Throws()
+        {
+            using (var test = await VerifyTest.CreateAsync(settings: null, certificate: _untrustedTestCertificate.Cert))
+            {
+                Assert.Throws(typeof(ArgumentException),
+                    () => test.PrimarySignature.GetSigningCertificateFingerprint((HashAlgorithmName)99));
+            }   
+        }
+
+        [CIOnlyFact]
+        public async Task GetSigningCertificateFingerprint_SuccessfullyHashesMultipleAlgorithms()
+        {
+            using (var test = await VerifyTest.CreateAsync(settings: null, certificate: _untrustedTestCertificate.Cert))
+            {
+                var sha256 = test.PrimarySignature.GetSigningCertificateFingerprint(HashAlgorithmName.SHA256);
+                var sha384 = test.PrimarySignature.GetSigningCertificateFingerprint(HashAlgorithmName.SHA384);
+                var sha512 = test.PrimarySignature.GetSigningCertificateFingerprint(HashAlgorithmName.SHA512);
+
+                var expectedSha256 = SignatureTestUtility.GetFingerprint(_untrustedTestCertificate.Cert, HashAlgorithmName.SHA256);
+                var expectedSha384 = SignatureTestUtility.GetFingerprint(_untrustedTestCertificate.Cert, HashAlgorithmName.SHA384);
+                var expectedSha512 = SignatureTestUtility.GetFingerprint(_untrustedTestCertificate.Cert, HashAlgorithmName.SHA512);
+
+                Assert.Equal(sha256, expectedSha256, StringComparer.Ordinal);
+                Assert.Equal(sha384, expectedSha384, StringComparer.Ordinal);
+                Assert.Equal(sha512, expectedSha512, StringComparer.Ordinal);
             }
         }
 
@@ -148,5 +201,4 @@ namespace NuGet.Packaging.FuncTest
         }
     }
 }
-
 #endif

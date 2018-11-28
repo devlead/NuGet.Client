@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
+using NuGet.Packaging.Signing;
 
 namespace NuGet.Protocol.Core.Types
 {
@@ -42,5 +42,7 @@ namespace NuGet.Protocol.Core.Types
         public string DirectDownloadDirectory { get; }
 
         public Guid ParentId { get; set; }
+
+        public ClientPolicyContext ClientPolicyContext { get; set; }
     }
 }

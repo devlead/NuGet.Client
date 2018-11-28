@@ -67,7 +67,12 @@ namespace NuGet.PackageManagement.UI
 
             InitializeComponent();
 
-            BindingOperations.EnableCollectionSynchronization(Items, _itemsLock);
+            _list.ItemsLock = ReentrantSemaphore.Create(
+                initialCount: 1,
+                joinableTaskContext: _joinableTaskFactory.Value.Context,
+                mode: ReentrantSemaphore.ReentrancyMode.Stack);
+
+            BindingOperations.EnableCollectionSynchronization(Items, _list.ItemsLock);
 
             DataContext = Items;
             CheckBoxesEnabled = false;
@@ -97,16 +102,18 @@ namespace NuGet.PackageManagement.UI
 
         public bool IsSolution { get; set; }
 
-        private readonly SemaphoreSlim _itemsLock = new SemaphoreSlim(1, 1);
-
         public ObservableCollection<object> Items { get; } = new ObservableCollection<object>();
 
         public IEnumerable<PackageItemListViewModel> PackageItems => Items.OfType<PackageItemListViewModel>().ToArray();
 
         public PackageItemListViewModel SelectedPackageItem => _list.SelectedItem as PackageItemListViewModel;
 
+        public int SelectedIndex => _list.SelectedIndex;
+
+        public Guid? OperationId => _loader?.State.OperationId;
+
         // Load items using the specified loader
-        internal void LoadItems(
+        internal async Task LoadItemsAsync(
             IPackageItemLoader loader,
             string loadingMessage,
             INuGetUILogger logger,
@@ -138,16 +145,12 @@ namespace NuGet.PackageManagement.UI
             _loadingStatusBar.Reset(loadingMessage, loader.IsMultiSource);
 
             var selectedPackageItem = SelectedPackageItem;
-            _itemsLock.Wait();
 
-            try
+            await _list.ItemsLock.ExecuteAsync(() =>
             {
                 ClearPackageList();
-            }
-            finally
-            {
-                _itemsLock.Release();
-            }
+                return Task.CompletedTask;
+            });
 
             _selectedCount = 0;
 
@@ -359,16 +362,11 @@ namespace NuGet.PackageManagement.UI
 
                     if (!Items.Contains(_loadingStatusIndicator))
                     {
-                        await _itemsLock.WaitAsync();
-
-                        try
+                        await _list.ItemsLock.ExecuteAsync(() =>
                         {
                             Items.Add(_loadingStatusIndicator);
-                        }
-                        finally
-                        {
-                            _itemsLock.Release();
-                        }
+                            return Task.CompletedTask;
+                        });
                     }
                 }
             });
@@ -406,9 +404,7 @@ namespace NuGet.PackageManagement.UI
             _joinableTaskFactory.Value.Run(async () =>
             {
                 // Synchronize updating Items list
-                await _itemsLock.WaitAsync();
-
-                try
+                await _list.ItemsLock.ExecuteAsync(() =>
                 {
                     // remove the loading status indicator if it's in the list
                     Items.Remove(_loadingStatusIndicator);
@@ -427,11 +423,9 @@ namespace NuGet.PackageManagement.UI
                     }
 
                     Items.Add(_loadingStatusIndicator);
-                }
-                finally
-                {
-                    _itemsLock.Release();
-                }
+
+                    return Task.CompletedTask;
+                });
             });
         }
 

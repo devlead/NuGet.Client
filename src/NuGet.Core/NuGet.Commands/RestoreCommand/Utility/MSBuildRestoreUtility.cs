@@ -266,6 +266,9 @@ namespace NuGet.Commands
 
                     // Warning properties
                     result.RestoreMetadata.ProjectWideWarningProperties = GetWarningProperties(specItem);
+
+                    // Packages lock file properties
+                    result.RestoreMetadata.RestoreLockProperties = GetRestoreLockProperites(specItem);
                 }
 
                 if (restoreType == ProjectStyle.ProjectJson)
@@ -575,14 +578,17 @@ namespace NuGet.Commands
         {
             foreach (var item in GetItemByType(items, "Dependency"))
             {
-                var dependency = new LibraryDependency();
+                var dependency = new LibraryDependency
+                {
+                    LibraryRange = new LibraryRange(
+                        name: item.GetProperty("Id"),
+                        versionRange: GetVersionRange(item),
+                        typeConstraint: LibraryDependencyTarget.Package),
 
-                dependency.LibraryRange = new LibraryRange(
-                    name: item.GetProperty("Id"),
-                    versionRange: GetVersionRange(item),
-                    typeConstraint: LibraryDependencyTarget.Package);
+                    AutoReferenced = IsPropertyTrue(item, "IsImplicitlyDefined"),
 
-                dependency.AutoReferenced = IsPropertyTrue(item, "IsImplicitlyDefined");
+                    GeneratePathProperty = IsPropertyTrue(item, "GeneratePathProperty")
+                };
 
                 // Add warning suppressions
                 foreach (var code in MSBuildStringUtility.GetNuGetLogCodes(item.GetProperty("NoWarn")))
@@ -822,6 +828,14 @@ namespace NuGet.Commands
                 treatWarningsAsErrors: specItem.GetProperty("TreatWarningsAsErrors"),
                 warningsAsErrors: specItem.GetProperty("WarningsAsErrors"),
                 noWarn: specItem.GetProperty("NoWarn"));
+        }
+
+        private static RestoreLockProperties GetRestoreLockProperites(IMSBuildItem specItem)
+        {
+            return new RestoreLockProperties(
+                specItem.GetProperty("RestorePackagesWithLockFile"),
+                specItem.GetProperty("NuGetLockFilePath"),
+                IsPropertyTrue(specItem, "RestoreLockedMode"));
         }
 
         /// <summary>

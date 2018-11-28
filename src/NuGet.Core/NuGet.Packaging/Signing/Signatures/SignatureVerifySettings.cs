@@ -1,23 +1,24 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using NuGet.Common;
+
 namespace NuGet.Packaging.Signing
 {
     /// <summary>
-    /// Settings to customize Signature.Verify behavior. 
+    /// Settings to customize Signature.Verify behavior.
     /// </summary>
     public sealed class SignatureVerifySettings
     {
         /// <summary>
-        /// Treat any issue as fatal.
+        /// Allow packages with signatures that do not conform to the specification.
         /// </summary>
-        /// <remarks>If set true, any issue will be an error instead of a warning</remarks>
-        public bool TreatIssuesAsErrors { get; }
+        public bool AllowIllegal { get; }
 
         /// <summary>
         /// Specifies that a signing certificate's chain that chains to an untrusted root is allowed
         /// </summary>
-        public bool AllowUntrustedRoot { get; }
+        public bool AllowUntrusted { get; }
 
         /// <summary>
         /// Specifies that a signing certificate's chain with unknown revocation is allowed.
@@ -26,30 +27,45 @@ namespace NuGet.Packaging.Signing
         public bool AllowUnknownRevocation { get; }
 
         /// <summary>
-        /// Specifies that an error should be logged when the signature is expired.
-        /// If set to false, this won't allow expired signatures, only skip the logging of the failure.
+        /// Indicates if unknown revocation status should be reported.
         /// </summary>
-        public bool LogOnSignatureExpired { get; }
+        public bool ReportUnknownRevocation { get; }
+
+        /// <summary>
+        /// Indicates if a signing certificate that chains to an untrusted root should be reported.
+        /// </summary>
+        public bool ReportUntrustedRoot { get; }
+
+        /// <summary>
+        /// Gets how the revocation verification should be performed.
+        /// </summary>
+        public RevocationMode RevocationMode { get; }
 
         public SignatureVerifySettings(
-            bool treatIssuesAsErrors,
-            bool allowUntrustedRoot,
+            bool allowIllegal,
+            bool allowUntrusted,
             bool allowUnknownRevocation,
-            bool logOnSignatureExpired)
+            bool reportUnknownRevocation,
+            bool reportUntrustedRoot,
+            RevocationMode revocationMode)
         {
-            TreatIssuesAsErrors = treatIssuesAsErrors;
-            AllowUntrustedRoot = allowUntrustedRoot;
+            AllowIllegal = allowIllegal;
+            AllowUntrusted = allowUntrusted;
             AllowUnknownRevocation = allowUnknownRevocation;
-            LogOnSignatureExpired = logOnSignatureExpired;
+            ReportUnknownRevocation = reportUnknownRevocation;
+            ReportUntrustedRoot = reportUntrustedRoot;
+            RevocationMode = revocationMode;
         }
 
         /// <summary>
         /// Get default settings values for relaxed verification on a signature
         /// </summary>
         public static SignatureVerifySettings Default { get; } = new SignatureVerifySettings(
-             treatIssuesAsErrors: false,
-             allowUntrustedRoot: true,
-             allowUnknownRevocation: true,
-             logOnSignatureExpired: true);
+            allowIllegal: false,
+            allowUntrusted: true,
+            allowUnknownRevocation: true,
+            reportUnknownRevocation: true,
+            reportUntrustedRoot: true,
+            revocationMode: RevocationMode.Online);
     }
 }

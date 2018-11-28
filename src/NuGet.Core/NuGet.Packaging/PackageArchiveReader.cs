@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -119,10 +120,10 @@ namespace NuGet.Packaging
                 ZipReadStream = stream;
                 _zipArchive = new ZipArchive(stream, ZipArchiveMode.Read);
             }
-            catch
+            catch (Exception ex)
             {
                 stream?.Dispose();
-                throw;
+                throw new InvalidDataException(string.Format(CultureInfo.CurrentCulture, Strings.InvalidPackageNupkg, filePath), ex);
             }
         }
 
@@ -164,6 +165,7 @@ namespace NuGet.Packaging
             CancellationToken token)
         {
             var filesCopied = new List<string>();
+            var pacakgeIdentity = GetIdentity();
 
             foreach (var packageFile in packageFiles)
             {
@@ -183,11 +185,10 @@ namespace NuGet.Packaging
                 // in windows, we get the windows-style path
                 var normalizedPath = Uri.UnescapeDataString(packageFileName.Replace('/', Path.DirectorySeparatorChar));
 
+                destination = NormalizeDirectoryPath(destination);
+                ValidatePackageEntry(destination, normalizedPath, pacakgeIdentity);
+
                 var targetFilePath = Path.Combine(destination, normalizedPath);
-                if (!targetFilePath.StartsWith(destination, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
 
                 using (var stream = entry.Open())
                 {
@@ -227,14 +228,41 @@ namespace NuGet.Packaging
             }
         }
 
+        /// <summary>
+        /// Validate all files in package are not traversed outside of the expected extraction path.
+        /// Eg: file entry like ../../foo.dll can get outside of the expected extraction path.
+        /// </summary>
+        public async Task ValidatePackageEntriesAsync(CancellationToken token)
+        {
+            try
+            {
+                var files = await GetFilesAsync(token);
+                var packageIdentity = await GetIdentityAsync(token);
+
+                // This dummy destination is used to check if the file in package get outside of the extractionPath
+                var dummyDestination = NuGetEnvironment.GetFolderPath(NuGetFolderPath.NuGetHome);
+
+                dummyDestination = NormalizeDirectoryPath(dummyDestination);
+
+                ValidatePackageEntries(dummyDestination, files, packageIdentity);
+            }
+            catch (UnsafePackageEntryException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                throw new PackagingException(string.Format(
+                    CultureInfo.CurrentCulture,
+                    Strings.ErrorUnableCheckPackageEntries), e);
+            }
+        }
+
         public override async Task<PrimarySignature> GetPrimarySignatureAsync(CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
 
-            if (ZipReadStream == null)
-            {
-                throw new SignatureException(Strings.SignedPackageUnableToAccessSignature);
-            }
+            ThrowIfZipReadStreamIsNull();
 
             PrimarySignature signature = null;
 
@@ -257,10 +285,7 @@ namespace NuGet.Packaging
         {
             token.ThrowIfCancellationRequested();
 
-            if (ZipReadStream == null)
-            {
-                throw new SignatureException(Strings.SignedPackageUnableToAccessSignature);
-            }
+            ThrowIfZipReadStreamIsNull();
 
             var isSigned = false;
 
@@ -286,10 +311,12 @@ namespace NuGet.Packaging
         {
             token.ThrowIfCancellationRequested();
 
-            if (ZipReadStream == null)
+            if (signatureContent == null)
             {
-                throw new SignatureException(Strings.SignedPackageUnableToAccessSignature);
+                throw new ArgumentNullException(nameof(signatureContent));
             }
+
+            ThrowIfZipReadStreamIsNull();
 
             if (!await IsSignedAsync(token))
             {
@@ -311,14 +338,36 @@ namespace NuGet.Packaging
 #endif
         }
 
+        public override string GetContentHashForSignedPackage(CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
+            ThrowIfZipReadStreamIsNull();
+
+            using (var zip = new ZipArchive(ZipReadStream, ZipArchiveMode.Read, leaveOpen: true))
+            {
+                var signatureEntry = zip.GetEntry(SigningSpecifications.SignaturePath);
+
+                if (signatureEntry == null ||
+                    !string.Equals(signatureEntry.Name, SigningSpecifications.SignaturePath, StringComparison.Ordinal))
+                {
+                    return null;
+                }
+            }
+
+            using (var bufferedStream = new ReadOnlyBufferedStream(ZipReadStream, leaveOpen: true))
+            using (var reader = new BinaryReader(bufferedStream, new UTF8Encoding(), leaveOpen: true))
+            {
+                return SignedPackageArchiveUtility.GetPackageContentHash(reader);
+            }
+
+        }
+
         public override Task<byte[]> GetArchiveHashAsync(HashAlgorithmName hashAlgorithmName, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
 
-            if (ZipReadStream == null)
-            {
-                throw new SignatureException(Strings.SignedPackageUnableToAccessSignature);
-            }
+            ThrowIfZipReadStreamIsNull();
 
             ZipReadStream.Seek(offset: 0, origin: SeekOrigin.Begin);
 
@@ -327,6 +376,19 @@ namespace NuGet.Packaging
                 var hash = hashAlgorithm.ComputeHash(ZipReadStream, leaveStreamOpen: true);
 
                 return Task.FromResult(hash);
+            }
+        }
+
+        public override bool CanVerifySignedPackages(SignedPackageVerifierSettings verifierSettings)
+        {
+            return true;
+        }
+
+        protected void ThrowIfZipReadStreamIsNull()
+        {
+            if (ZipReadStream == null)
+            {
+                throw new SignatureException(Strings.SignedPackageUnableToAccessSignature);
             }
         }
     }

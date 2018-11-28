@@ -12,6 +12,8 @@ using NuGet.Packaging.PackageCreation.Resources;
 using NuGet.Versioning;
 using NuGet.Packaging.Core;
 using NuGet.Frameworks;
+using NuGet.Common;
+using NuGet.Packaging.Licenses;
 
 namespace NuGet.Packaging
 {
@@ -25,7 +27,7 @@ namespace NuGet.Packaging
             if (metadataElement == null)
             {
                 throw new InvalidDataException(
-                    String.Format(CultureInfo.CurrentCulture, NuGetResources.Manifest_RequiredElementMissing, "metadata"));
+                    string.Format(CultureInfo.CurrentCulture, NuGetResources.Manifest_RequiredElementMissing, "metadata"));
             }
 
             return new Manifest(
@@ -51,10 +53,14 @@ namespace NuGet.Packaging
             // now check for required elements, which include <id>, <version>, <authors> and <description>
             foreach (var requiredElement in RequiredElements)
             {
+                if (requiredElement.Equals("authors") && manifestMetadata.PackageTypes.Contains(PackageType.SymbolsPackage))
+                {
+                    continue;
+                }
                 if (!allElements.Contains(requiredElement))
                 {
                     throw new InvalidDataException(
-                        String.Format(CultureInfo.CurrentCulture, NuGetResources.Manifest_RequiredElementMissing, requiredElement));
+                        string.Format(CultureInfo.CurrentCulture, NuGetResources.Manifest_RequiredElementMissing, requiredElement));
                 }
             }
 
@@ -70,75 +76,159 @@ namespace NuGet.Packaging
 
             allElements.Add(element.Name.LocalName);
 
-            string value = element.Value.SafeTrim();
-            switch (element.Name.LocalName)
+            string value = null;
+            try
             {
-                case "id":
-                    manifestMetadata.Id = value;
-                    break;
-                case "version":
-                    manifestMetadata.Version = NuGetVersion.Parse(value);
-                    break;
-                case "authors":
-                    manifestMetadata.Authors = value?.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                    break;
-                case "owners":
-                    manifestMetadata.Owners = value?.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                    break;
-                case "licenseUrl":
-                    manifestMetadata.SetLicenseUrl(value);
-                    break;
-                case "projectUrl":
-                    manifestMetadata.SetProjectUrl(value);
-                    break;
-                case "iconUrl":
-                    manifestMetadata.SetIconUrl(value);
-                    break;
-                case "requireLicenseAcceptance":
-                    manifestMetadata.RequireLicenseAcceptance = XmlConvert.ToBoolean(value);
-                    break;
-                case "developmentDependency":
-                    manifestMetadata.DevelopmentDependency = XmlConvert.ToBoolean(value);
-                    break;
-                case "description":
-                    manifestMetadata.Description = value;
-                    break;
-                case "summary":
-                    manifestMetadata.Summary = value;
-                    break;
-                case "releaseNotes":
-                    manifestMetadata.ReleaseNotes = value;
-                    break;
-                case "copyright":
-                    manifestMetadata.Copyright = value;
-                    break;
-                case "language":
-                    manifestMetadata.Language = value;
-                    break;
-                case "title":
-                    manifestMetadata.Title = value;
-                    break;
-                case "tags":
-                    manifestMetadata.Tags = value;
-                    break;
-                case "serviceable":
-                    manifestMetadata.Serviceable = XmlConvert.ToBoolean(value);
-                    break;
-                case "dependencies":
-                    manifestMetadata.DependencyGroups = ReadDependencyGroups(element);
-                    break;
-                case "frameworkAssemblies":
-                    manifestMetadata.FrameworkReferences = ReadFrameworkAssemblies(element);
-                    break;
-                case "references":
-                    manifestMetadata.PackageAssemblyReferences = ReadReferenceSets(element);
-                    break;
-                case "contentFiles":
-                    manifestMetadata.ContentFiles = ReadContentFiles(element);
-                    break;
-                case "repository":
-                    manifestMetadata.Repository = ReadRepository(element);
-                    break;
+                value = element.Value.SafeTrim();
+                switch (element.Name.LocalName)
+                {
+                    case "id":
+                        manifestMetadata.Id = value;
+                        break;
+                    case "version":
+                        manifestMetadata.Version = NuGetVersion.Parse(value);
+                        break;
+                    case "authors":
+                        manifestMetadata.Authors = value?.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        break;
+                    case "owners":
+                        manifestMetadata.Owners = value?.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        break;
+                    case "licenseUrl":
+                        manifestMetadata.SetLicenseUrl(value);
+                        break;
+                    case "projectUrl":
+                        manifestMetadata.SetProjectUrl(value);
+                        break;
+                    case "iconUrl":
+                        manifestMetadata.SetIconUrl(value);
+                        break;
+                    case "requireLicenseAcceptance":
+                        manifestMetadata.RequireLicenseAcceptance = XmlConvert.ToBoolean(value);
+                        break;
+                    case "developmentDependency":
+                        manifestMetadata.DevelopmentDependency = XmlConvert.ToBoolean(value);
+                        break;
+                    case "description":
+                        manifestMetadata.Description = value;
+                        break;
+                    case "summary":
+                        manifestMetadata.Summary = value;
+                        break;
+                    case "releaseNotes":
+                        manifestMetadata.ReleaseNotes = value;
+                        break;
+                    case "copyright":
+                        manifestMetadata.Copyright = value;
+                        break;
+                    case "language":
+                        manifestMetadata.Language = value;
+                        break;
+                    case "title":
+                        manifestMetadata.Title = value;
+                        break;
+                    case "tags":
+                        manifestMetadata.Tags = value;
+                        break;
+                    case "serviceable":
+                        manifestMetadata.Serviceable = XmlConvert.ToBoolean(value);
+                        break;
+                    case "dependencies":
+                        manifestMetadata.DependencyGroups = ReadDependencyGroups(element);
+                        break;
+                    case "frameworkAssemblies":
+                        manifestMetadata.FrameworkReferences = ReadFrameworkAssemblies(element);
+                        break;
+                    case "references":
+                        manifestMetadata.PackageAssemblyReferences = ReadReferenceSets(element);
+                        break;
+                    case "contentFiles":
+                        manifestMetadata.ContentFiles = ReadContentFiles(element);
+                        break;
+                    case "repository":
+                        manifestMetadata.Repository = ReadRepository(element);
+                        break;
+                    case "license":
+                        manifestMetadata.LicenseMetadata = ReadLicenseMetadata(element);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Wrap the exception to pinpoint the exact property that is problematic,
+                // and include a hint about replacement tokens.
+                if (ex is InvalidDataException)
+                {
+                    throw ex;
+                }
+                else
+                {
+                    throw new InvalidDataException(string.Format(NuGetResources.Manifest_PropertyValueReadFailure, value, element.Name.LocalName), ex);
+                }
+            }
+        }
+
+
+        private static LicenseMetadata ReadLicenseMetadata(XElement licenseNode)
+        {
+            var type = licenseNode.Attribute(NuspecUtility.Type).Value.SafeTrim();
+            var license = licenseNode.Value.SafeTrim();
+            var versionValue = licenseNode.Attribute(NuspecUtility.Version)?.Value.SafeTrim();
+
+            if (!Enum.TryParse(type, ignoreCase: true, result: out LicenseType licenseType))
+            {
+                throw new InvalidDataException(string.Format(CultureInfo.CurrentCulture, Strings.NuGetLicense_InvalidLicenseType, type));
+            }
+
+            if (string.IsNullOrWhiteSpace(license))
+            {
+                throw new InvalidDataException(string.Format(CultureInfo.CurrentCulture, Strings.NuGetLicense_MissingRequiredValue));
+            }
+
+            Version version = null;
+            if (string.IsNullOrWhiteSpace(versionValue))
+            {
+                version = LicenseMetadata.EmptyVersion;
+            }
+            else
+            {
+                if (!Version.TryParse(versionValue, out version))
+                {
+                    throw new PackagingException(NuGetLogCode.NU5034, string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.NuGetLicense_InvalidLicenseExpressionVersion,
+                        versionValue));
+                }
+            }
+
+            switch (licenseType)
+            {
+                case LicenseType.Expression:
+
+                    if (version.CompareTo(LicenseMetadata.CurrentVersion) <= 0)
+                    {
+                        try
+                        {
+                            var expression = NuGetLicenseExpression.Parse(license);
+                            return new LicenseMetadata(licenseType, license, expression, warningsAndErrors: null, version: version);
+                        }
+                        catch (NuGetLicenseExpressionParsingException e)
+                        {
+                            throw new PackagingException(NuGetLogCode.NU5032, e.Message);
+                        }
+
+                    }
+                    throw new PackagingException(NuGetLogCode.NU5034, string.Format(
+                                   CultureInfo.CurrentCulture,
+                                   Strings.InvalidLicenseExppressionVersion_VersionTooHigh,
+                                   versionValue,
+                                   LicenseMetadata.CurrentVersion));
+
+                case LicenseType.File:
+                    return new LicenseMetadata(type: licenseType, license: license, expression: null, warningsAndErrors: null, version: LicenseMetadata.EmptyVersion);
+
+                default:
+                    throw new InvalidDataException(string.Format(CultureInfo.CurrentCulture, Strings.NuGetLicense_InvalidLicenseType, type));
             }
         }
 
@@ -221,7 +311,7 @@ namespace NuGet.Packaging
 
             return (from element in frameworkElement.ElementsNoNamespace("frameworkAssembly")
                     let assemblyNameAttribute = element.Attribute("assemblyName")
-                    where assemblyNameAttribute != null && !String.IsNullOrEmpty(assemblyNameAttribute.Value)
+                    where assemblyNameAttribute != null && !string.IsNullOrEmpty(assemblyNameAttribute.Value)
                     select new FrameworkAssemblyReference(assemblyNameAttribute.Value?.Trim(),
                         string.IsNullOrEmpty(element.GetOptionalAttributeValue("targetFramework")) ?
                         new[] { NuGetFramework.AnyFramework } :
@@ -266,7 +356,7 @@ namespace NuGet.Packaging
 
                         if (targetFramework.IsUnsupported)
                         {
-                            throw new InvalidDataException(String.Format(CultureInfo.CurrentCulture, Strings.Error_InvalidTargetFramework, targetFrameworkName));
+                            throw new InvalidDataException(string.Format(CultureInfo.CurrentCulture, Strings.Error_InvalidTargetFramework, targetFrameworkName));
                         }
                     }
 
@@ -286,7 +376,7 @@ namespace NuGet.Packaging
 
             var dependency = (from element in containerElement.ElementsNoNamespace("dependency")
                     let idElement = element.Attribute("id")
-                    where idElement != null && !String.IsNullOrEmpty(idElement.Value)
+                    where idElement != null && !string.IsNullOrEmpty(idElement.Value)
                     let elementVersion = element.GetOptionalAttributeValue("version")
                     select new PackageDependency(
                         idElement.Value?.Trim(),
@@ -305,21 +395,21 @@ namespace NuGet.Packaging
                 return null;
             }
 
-            List<ManifestFile> files = new List<ManifestFile>();
+            var files = new List<ManifestFile>();
             foreach (var file in xElement.ElementsNoNamespace("file"))
             {
                 var srcElement = file.Attribute("src");
-                if (srcElement == null || String.IsNullOrEmpty(srcElement.Value))
+                if (srcElement == null || string.IsNullOrEmpty(srcElement.Value))
                 {
                     continue;
                 }
 
                 var slashes = new[] { '\\', '/' };
-                string target = file.GetOptionalAttributeValue("target").SafeTrim()?.TrimStart(slashes);
-                string exclude = file.GetOptionalAttributeValue("exclude").SafeTrim();
+                var target = file.GetOptionalAttributeValue("target").SafeTrim()?.TrimStart(slashes);
+                var exclude = file.GetOptionalAttributeValue("exclude").SafeTrim();
 
                 // Multiple sources can be specified by using semi-colon separated values. 
-                files.AddRange(srcElement.Value.Trim(';').Split(';').Select(s => 
+                files.AddRange(srcElement.Value.Trim(';').Split(';').Select(s =>
                     new ManifestFile
                     {
                         Source = s.SafeTrim(),

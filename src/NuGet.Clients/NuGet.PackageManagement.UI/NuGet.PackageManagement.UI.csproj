@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'README.md'))\build\common.legacy.props" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -60,8 +60,11 @@
     <Compile Include="Common\NuGetEvent.cs" />
     <Compile Include="Common\NuGetEventTrigger.cs" />
     <Compile Include="Controls\TabItemButton.cs" />
+    <Compile Include="Converters\AdditionConverter.cs" />
     <Compile Include="Converters\BooleanToGridRowHeightConverter.cs" />
+    <Compile Include="Converters\DateTimeConverter.cs" />
     <Compile Include="Converters\InverseBooleanConverter.cs" />
+    <Compile Include="Converters\SubstractionConverter.cs" />
     <Compile Include="Converters\RadioBoolToIntConverter.cs" />
     <Compile Include="Converters\TooltipConverter.cs" />
     <Compile Include="Converters\BooleanToFontWeightConverter.cs" />
@@ -70,12 +73,17 @@
     <Compile Include="Converters\NotNullOrTrueToBooleanConverter.cs" />
     <Compile Include="DisplayVersion.cs" />
     <Compile Include="IPackageItemLoader.cs" />
+    <Compile Include="Models\FreeText.cs" />
+    <Compile Include="Models\IText.cs" />
+    <Compile Include="Models\LicenseText.cs" />
+    <Compile Include="Models\LicenseFileText.cs" />
     <Compile Include="Models\LoadingStatusViewModel.cs" />
     <Compile Include="Models\NuGetProjectUpgradeDependencyItem.cs" />
     <Compile Include="Models\NuGetProjectUpgradeWindowModel.cs" />
     <Compile Include="Models\PackageSearchStatus.cs" />
     <Compile Include="Models\ProjectVersionConstraint.cs" />
     <Compile Include="Models\PackageIconMonikers.cs" />
+    <Compile Include="Models\WarningText.cs" />
     <Compile Include="NativeMethods.cs" />
     <Compile Include="NuGetPackageManagerControlSearchTask.cs" />
     <Compile Include="Options\CheckedListBoxAccessibleObject.cs" />
@@ -105,8 +113,8 @@
     <Compile Include="Options\PackageSourcesOptionsControl.Designer.cs">
       <DependentUpon>PackageSourcesOptionsControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="PackageLicenseUtilities.cs" />
     <Compile Include="PackageManagerWindowPane.cs" />
-    <Compile Include="Resources\Domain.cs" />
     <Compile Include="Resources\Resources.xaml.cs">
       <DependentUpon>Resources.xaml</DependentUpon>
     </Compile>
@@ -122,6 +130,10 @@
     </Compile>
     <Compile Include="Xamls\InfiniteScrollListBox.cs" />
     <Compile Include="Xamls\InfiniteScrollListBoxAutomationPeer.cs" />
+    <Compile Include="Models\LicenseFileData.cs" />
+    <Compile Include="Xamls\LicenseFileWindow.xaml.cs">
+      <DependentUpon>LicenseFileWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Xamls\NuGetProjectUpgradeWindow.xaml.cs">
       <DependentUpon>NuGetProjectUpgradeWindow.xaml</DependentUpon>
     </Compile>
@@ -291,6 +303,10 @@
     <Page Include="Xamls\InstalledIndicator.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Xamls\LicenseFileWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Xamls\MigratorHelpIcon.xaml">
       <SubType>Designer</SubType>
@@ -523,6 +539,9 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.ImageCatalog">
+      <Version>15.8.28010</Version>
+    </PackageReference>
     <PackageReference Include="NuGet.Build.Tasks.Pack" Version="4.4.0" PrivateAssets="all" />
   </ItemGroup>
   <PropertyGroup>

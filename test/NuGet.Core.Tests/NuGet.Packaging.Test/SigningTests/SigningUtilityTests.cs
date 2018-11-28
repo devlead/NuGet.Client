@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 #if IS_DESKTOP
 using System.Security.Cryptography.Pkcs;
@@ -190,9 +191,9 @@ namespace NuGet.Packaging.Test
         [Fact]
         public void CreateSignedAttributes_SignPackageRequest_WithValidInput_ReturnsAttributes()
         {
-            using (var rootCertificate = SignTestUtility.GetCertificate("root.crt"))
-            using (var intermediateCertificate = SignTestUtility.GetCertificate("intermediate.crt"))
-            using (var leafCertificate = SignTestUtility.GetCertificate("leaf.crt"))
+            using (var rootCertificate = SigningTestUtility.GetCertificate("root.crt"))
+            using (var intermediateCertificate = SigningTestUtility.GetCertificate("intermediate.crt"))
+            using (var leafCertificate = SigningTestUtility.GetCertificate("leaf.crt"))
             using (var request = CreateRequest(leafCertificate))
             {
                 var certList = new[] { leafCertificate, intermediateCertificate, rootCertificate };
@@ -392,10 +393,10 @@ namespace NuGet.Packaging.Test
 
                         var essCertIdV2 = signingCertificateV2.Certificates[0];
 
-                        Assert.Equal(SignTestUtility.GetHash(request.Certificate, request.SignatureHashAlgorithm), essCertIdV2.CertificateHash);
+                        Assert.Equal(SigningTestUtility.GetHash(request.Certificate, request.SignatureHashAlgorithm), essCertIdV2.CertificateHash);
                         Assert.Equal(request.SignatureHashAlgorithm.ConvertToOidString(), essCertIdV2.HashAlgorithm.Algorithm.Value);
                         Assert.Equal(request.Certificate.IssuerName.Name, essCertIdV2.IssuerSerial.GeneralNames[0].DirectoryName.Name);
-                        SignTestUtility.VerifySerialNumber(request.Certificate, essCertIdV2.IssuerSerial);
+                        SigningTestUtility.VerifySerialNumber(request.Certificate, essCertIdV2.IssuerSerial);
                         Assert.Null(signingCertificateV2.Policies);
 
                         signingCertificateV2AttributeFound = true;
@@ -496,7 +497,7 @@ namespace NuGet.Packaging.Test
             using (var test = SignTest.Create(
                 _fixture.GetDefaultCertificate(),
                 HashAlgorithmName.SHA256,
-                GetResource("CentralDirectoryHeaderWithZip64ExtraField.zip")))
+                SigningTestUtility.GetResourceBytes("CentralDirectoryHeaderWithZip64ExtraField.zip")))
             {
                 var exception = await Assert.ThrowsAsync<SignatureException>(
                     () => SigningUtility.SignAsync(test.Options, test.Request, CancellationToken.None));
@@ -559,11 +560,49 @@ namespace NuGet.Packaging.Test
             }
         }
 
-        private static byte[] GetResource(string name)
+        [Fact]
+        public async Task SignAsync_WhenPackageEntryCountWouldRequireZip64_FailsAsync()
         {
-            return ResourceTestUtility.GetResourceBytes(
-                $"NuGet.Packaging.Test.compiler.resources.{name}",
-                typeof(SigningUtilityTests));
+            const ushort desiredFileCount = 0xFFFF - 1;
+
+            var package = new SimpleTestPackageContext();
+
+            var requiredFileCount = desiredFileCount - package.Files.Count;
+
+            for (var i = 0; i < requiredFileCount - 1 /*nuspec*/; ++i)
+            {
+                package.AddFile(i.ToString());
+            }
+
+            using (var packageStream = await package.CreateAsStreamAsync())
+            {
+                using (var zipArchive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true))
+                {
+                    // Sanity check before testing.
+                    Assert.Equal(desiredFileCount, zipArchive.Entries.Count());
+                }
+
+                packageStream.Position = 0;
+
+                using (var test = SignTest.Create(
+                     _fixture.GetDefaultCertificate(),
+                    HashAlgorithmName.SHA256,
+                    packageStream.ToArray(),
+                    new X509SignatureProvider(timestampProvider: null)))
+                {
+                    var exception = await Assert.ThrowsAsync<SignatureException>(
+                        () => SigningUtility.SignAsync(test.Options, test.Request, CancellationToken.None));
+
+                    Assert.Equal(NuGetLogCode.NU3039, exception.Code);
+                    Assert.Equal("The package cannot be signed as it would require the Zip64 format.", exception.Message);
+
+                    Assert.Equal(0, test.Options.OutputPackageStream.Length);
+                    Assert.Equal(0, test.Logger.Errors);
+                    Assert.Equal(1, test.Logger.Warnings);
+                    Assert.Equal(1, test.Logger.Messages.Count());
+                    Assert.True(test.Logger.Messages.Contains("A certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider."));
+                }
+            }
         }
 
         private sealed class SignTest : IDisposable

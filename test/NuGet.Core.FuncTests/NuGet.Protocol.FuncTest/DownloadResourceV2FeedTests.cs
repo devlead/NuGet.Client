@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
@@ -6,12 +6,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NuGet.Common;
-using NuGet.Configuration;
 using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
 using Xunit;
-using NuGet.Protocol;
 using NuGet.Test.Utility;
 
 namespace NuGet.Protocol.FuncTest
@@ -41,7 +39,7 @@ namespace NuGet.Protocol.FuncTest
                 var packageReader = downloadResult.PackageReader;
                 var files = packageReader.GetFiles();
 
-                Assert.Equal(11, files.Count());
+                Assert.Equal(13, files.Count());
             }
         }
 
@@ -68,7 +66,7 @@ namespace NuGet.Protocol.FuncTest
                 var packageReader = downloadResult.PackageReader;
                 var files = packageReader.GetFiles();
 
-                Assert.Equal(11, files.Count());
+                Assert.Equal(13, files.Count());
             }
         }
 

@@ -39,12 +39,15 @@ Copyright (c) .NET Foundation. All rights reserved.
     <PackDependsOn>$(BeforePack); _IntermediatePack; GenerateNuspec; $(PackDependsOn)</PackDependsOn>
     <IsInnerBuild Condition="'$(TargetFramework)' != '' AND '$(TargetFrameworks)' != ''">true</IsInnerBuild>
     <NoBuild Condition="'$(GeneratePackageOnBuild)' == 'true'">true</NoBuild>
+    <SymbolPackageFormat Condition="'$(SymbolPackageFormat)' == ''">symbols.nupkg</SymbolPackageFormat>
     <AddPriFileDependsOn Condition="'$(MicrosoftPortableCurrentVersionPropsHasBeenImported)' == 'true'">DeterminePortableBuildCapabilities</AddPriFileDependsOn>
     <NuspecOutputPath Condition="'$(NuspecOutputPath)' == ''">$(BaseIntermediateOutputPath)$(Configuration)\</NuspecOutputPath>
     <WarnOnPackingNonPackableProject Condition="'$(WarnOnPackingNonPackableProject)' == ''">false</WarnOnPackingNonPackableProject>
     <ImportNuGetBuildTasksPackTargetsFromSdk Condition="'$(ImportNuGetBuildTasksPackTargetsFromSdk)' == ''">false</ImportNuGetBuildTasksPackTargetsFromSdk>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>.dll; .exe; .winmd; .json; .pri; .xml; $(AllowedOutputExtensionsInPackageBuildOutputFolder)</AllowedOutputExtensionsInPackageBuildOutputFolder>
-    <AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder>.pdb; .mdb; $(AllowedOutputExtensionsInPackageBuildOutputFolder); $(AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder)</AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder>
+    <AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder Condition="'$(SymbolPackageFormat)' != 'snupkg'">.pdb; .mdb; $(AllowedOutputExtensionsInPackageBuildOutputFolder); $(AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder)</AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder>
+    <AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder Condition="'$(SymbolPackageFormat)' == 'snupkg'">.pdb</AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder>
+    <SuppressDependenciesWhenPacking Condition="'$(SuppressDependenciesWhenPacking)' == ''">false</SuppressDependenciesWhenPacking>
   </PropertyGroup>
   <PropertyGroup Condition="'$(NoBuild)' == 'true' ">
     <GenerateNuspecDependsOn>$(GenerateNuspecDependsOn)</GenerateNuspecDependsOn>
@@ -81,7 +84,8 @@ Copyright (c) .NET Foundation. All rights reserved.
         PackageId="$(PackageId)"
         PackageVersion="$(PackageVersion)"
         IncludeSymbols="$(IncludeSymbols)"
-        IncludeSource="$(IncludeSource)">
+        IncludeSource="$(IncludeSource)"
+        SymbolPackageFormat="$(SymbolPackageFormat)">
 
       <Output
         TaskParameter="OutputPackItems"
@@ -215,6 +219,7 @@ Copyright (c) .NET Foundation. All rights reserved.
               ProjectReferencesWithVersions="@(_ProjectReferencesWithVersions)"
               TargetPathsToSymbols="@(_TargetPathsToSymbols)"
               TargetFrameworks="@(_TargetFrameworks)"
+              FrameworksWithSuppressedDependencies="@(_FrameworksWithSuppressedDependencies)"
               AssemblyName="$(AssemblyName)"
               PackageOutputPath="$(PackageOutputAbsolutePath)"
               IncludeSymbols="$(IncludeSymbols)"
@@ -227,6 +232,7 @@ Copyright (c) .NET Foundation. All rights reserved.
               RepositoryCommit="$(RepositoryCommit)"
               SourceFiles="@(_SourceFiles->Distinct())"
               NoPackageAnalysis="$(NoPackageAnalysis)"
+              NoDefaultExcludes="$(NoDefaultExcludes)"
               MinClientVersion="$(MinClientVersion)"
               Serviceable="$(Serviceable)"
               FrameworkAssemblyReferences="@(_FrameworkAssemblyReferences)"
@@ -243,7 +249,14 @@ Copyright (c) .NET Foundation. All rights reserved.
               AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder="$(AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder)"
               NoWarn="$(NoWarn)"
               WarningsAsErrors="$(WarningsAsErrors)"
-              TreatWarningsAsErrors="$(TreatWarningsAsErrors)"/>
+              TreatWarningsAsErrors="$(TreatWarningsAsErrors)"
+              OutputFileNamesWithoutVersion="$(OutputFileNamesWithoutVersion)"
+              InstallPackageToOutputPath="$(InstallPackageToOutputPath)"
+              SymbolPackageFormat="$(SymbolPackageFormat)"
+              PackageLicenseFile="$(PackageLicenseFile)"
+              PackageLicenseExpression="$(PackageLicenseExpression)"
+              PackageLicenseExpressionVersion="$(PackageLicenseExpressionVersion)"
+              />
   </Target>
 
   <!--
@@ -272,7 +285,9 @@ Copyright (c) .NET Foundation. All rights reserved.
     </PropertyGroup>
   </Target>
   
-  <Target Name="_GetProjectReferenceVersions" DependsOnTargets="_CalculateInputsOutputsForPack;$(GetPackageVersionDependsOn)">
+  <Target Name="_GetProjectReferenceVersions" 
+          Condition="'$(NuspecFile)' == ''"
+          DependsOnTargets="_CalculateInputsOutputsForPack;$(GetPackageVersionDependsOn)">
     <ConvertToAbsolutePath Paths="$(RestoreOutputPath)">
       <Output TaskParameter="AbsolutePaths" PropertyName="RestoreOutputAbsolutePath" />
     </ConvertToAbsolutePath>
@@ -367,6 +382,23 @@ Copyright (c) .NET Foundation. All rights reserved.
           TaskParameter="TargetOutputs"
           ItemName="_FrameworkAssemblyReferences" />
     </MSBuild>
+
+    <MSBuild
+      Projects="$(MSBuildProjectFullPath)"
+      Targets="_GetFrameworksWithSuppressedDependencies"
+      Properties="TargetFramework=%(_TargetFrameworks.Identity);
+                  BuildProjectReferences=false;">
+
+      <Output
+          TaskParameter="TargetOutputs"
+          ItemName="_FrameworksWithSuppressedDependencies" />
+    </MSBuild>
+  </Target>
+
+  <Target Name ="_GetFrameworksWithSuppressedDependencies" Returns="@(_TfmWithDependenciesSuppressed)">
+    <ItemGroup>
+      <_TfmWithDependenciesSuppressed Include="$(TargetFramework)" Condition="'$(SuppressDependenciesWhenPacking)' == 'true'"/>
+    </ItemGroup>
   </Target>
 
   <Target Name ="_GetFrameworkAssemblyReferences" DependsOnTargets="ResolveReferences" Returns="@(TfmSpecificFrameworkAssemblyReferences)">

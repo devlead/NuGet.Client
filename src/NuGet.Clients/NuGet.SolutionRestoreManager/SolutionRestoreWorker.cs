@@ -288,6 +288,13 @@ namespace NuGet.SolutionRestoreManager
                     {
                         shouldStartNewBGJobRunner = false;
                     }
+                    else if (_lockService.Value.IsLockHeld && _lockService.Value.LockCount > 0)
+                    {
+                        // when restore is not running but NuGet lock is still held for the current async operation,
+                        // then it means other NuGet operation like Install or Update are in progress which will
+                        // take care of running restore for appropriate projects so skipping auto restore in that case.
+                        return true;
+                    }
 
                     // on-board request onto pending restore operation
                     _pendingRequests.Value.TryAdd(request);
@@ -336,19 +343,30 @@ namespace NuGet.SolutionRestoreManager
 
         public async Task<bool> RestoreAsync(SolutionRestoreRequest request, CancellationToken token)
         {
-            using (_joinableCollection.Join())
+            // Signal that restore is running
+            _isCompleteEvent.Reset();
+
+            try
             {
-                // Initialize if not already done.
-                await InitializeAsync();
-
-                using (var restoreOperation = new BackgroundRestoreOperation())
+                using (_joinableCollection.Join())
                 {
-                    await PromoteTaskToActiveAsync(restoreOperation, token);
+                    // Initialize if not already done.
+                    await InitializeAsync();
 
-                    var result = await ProcessRestoreRequestAsync(restoreOperation, request, token);
+                    using (var restoreOperation = new BackgroundRestoreOperation())
+                    {
+                        await PromoteTaskToActiveAsync(restoreOperation, token);
 
-                    return result;
+                        var result = await ProcessRestoreRequestAsync(restoreOperation, request, token);
+
+                        return result;
+                    }
                 }
+            }
+            finally
+            {
+                // Signal that restore has been completed.
+                _isCompleteEvent.Set();
             }
         }
 
@@ -507,7 +525,7 @@ namespace NuGet.SolutionRestoreManager
 
             var continuation = joinableTask
                 .Task
-                .ContinueWith(t => restoreOperation.ContinuationAction(t));
+                .ContinueWith(t => restoreOperation.ContinuationAction(t, _joinableFactory));
 
             return await joinableTask;
         }
@@ -597,9 +615,10 @@ namespace NuGet.SolutionRestoreManager
 
             public System.Runtime.CompilerServices.TaskAwaiter<bool> GetAwaiter() => Task.GetAwaiter();
 
-            [SuppressMessage("Microsoft.VisualStudio.Threading.Analyzers", "VSTHRD002", Justification = "NuGet/Home#4833 Baseline")]
-            public void ContinuationAction(Task<bool> targetTask)
+            public void ContinuationAction(Task<bool> targetTask, JoinableTaskFactory jtf)
             {
+                Assumes.True(targetTask.IsCompleted);
+
                 // propagate the restore target task status to the *unbound* active task.
                 if (targetTask.IsFaulted || targetTask.IsCanceled)
                 {
@@ -609,7 +628,9 @@ namespace NuGet.SolutionRestoreManager
                 else
                 {
                     // completed successfully
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
                     JobTcs.TrySetResult(targetTask.Result);
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
                 }
             }
 

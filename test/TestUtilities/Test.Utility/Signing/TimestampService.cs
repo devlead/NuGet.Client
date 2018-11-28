@@ -60,7 +60,8 @@ namespace Test.Utility.Signing
 
         public static TimestampService Create(
             CertificateAuthority certificateAuthority,
-            TimestampServiceOptions serviceOptions = null)
+            TimestampServiceOptions serviceOptions = null,
+            IssueCertificateOptions issueCertificateOptions = null)
         {
             if (certificateAuthority == null)
             {
@@ -69,11 +70,12 @@ namespace Test.Utility.Signing
 
             serviceOptions = serviceOptions ?? new TimestampServiceOptions();
 
-            var keyPair = CertificateUtilities.CreateKeyPair();
-            var id = Guid.NewGuid().ToString();
-            var subjectName = new X509Name($"C=US,ST=WA,L=Redmond,O=NuGet,CN=NuGet Test Timestamp Service ({id})");
+            if (issueCertificateOptions == null)
+            {
+                issueCertificateOptions = IssueCertificateOptions.CreateDefaultForTimestampService();
+            }
 
-            Action<X509V3CertificateGenerator> customizeCertificate = generator =>
+            void customizeCertificate(X509V3CertificateGenerator generator)
             {
                 generator.AddExtension(
                     X509Extensions.AuthorityInfoAccess,
@@ -90,7 +92,7 @@ namespace Test.Utility.Signing
                 generator.AddExtension(
                     X509Extensions.SubjectKeyIdentifier,
                     critical: false,
-                    extensionValue: new SubjectKeyIdentifierStructure(keyPair.Public));
+                    extensionValue: new SubjectKeyIdentifierStructure(issueCertificateOptions.KeyPair.Public));
                 generator.AddExtension(
                     X509Extensions.BasicConstraints,
                     critical: true,
@@ -103,18 +105,27 @@ namespace Test.Utility.Signing
                     X509Extensions.ExtendedKeyUsage,
                     critical: true,
                     extensionValue: ExtendedKeyUsage.GetInstance(new DerSequence(KeyPurposeID.IdKPTimeStamping)));
-            };
+            }
 
-            var issueOptions = new IssueCertificateOptions()
-                {
-                    KeyPair = keyPair,
-                    SubjectName = subjectName,
-                    CustomizeCertificate = customizeCertificate
-                };
-            var certificate = certificateAuthority.IssueCertificate(issueOptions);
+            if (issueCertificateOptions.CustomizeCertificate == null)
+            {
+                issueCertificateOptions.CustomizeCertificate = customizeCertificate;
+            }
+
+            if (serviceOptions.IssuedCertificateNotBefore.HasValue)
+            {
+                issueCertificateOptions.NotBefore = serviceOptions.IssuedCertificateNotBefore.Value;
+            }
+
+            if (serviceOptions.IssuedCertificateNotAfter.HasValue)
+            {
+                issueCertificateOptions.NotAfter = serviceOptions.IssuedCertificateNotAfter.Value;
+            }
+
+            var certificate = certificateAuthority.IssueCertificate(issueCertificateOptions);
             var uri = certificateAuthority.GenerateRandomUri();
 
-            return new TimestampService(certificateAuthority, certificate, keyPair, uri, serviceOptions);
+            return new TimestampService(certificateAuthority, certificate, issueCertificateOptions.KeyPair, uri, serviceOptions);
         }
 
 #if IS_DESKTOP
@@ -163,7 +174,13 @@ namespace Test.Utility.Signing
             }
             else
             {
-                response = responseGenerator.Generate(request, _nextSerialNumber, DateTime.UtcNow);
+                var generalizedTime = DateTime.UtcNow;
+
+                if (_options.GeneralizedTime.HasValue)
+                {
+                    generalizedTime = _options.GeneralizedTime.Value.UtcDateTime;
+                }
+                response = responseGenerator.Generate(request, _nextSerialNumber, generalizedTime);
             }
 
             _serialNumbers.Add(_nextSerialNumber);

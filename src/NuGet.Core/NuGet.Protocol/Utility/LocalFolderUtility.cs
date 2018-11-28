@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security;
+using System.Threading;
 using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.Packaging;
@@ -927,14 +928,13 @@ namespace NuGet.Protocol
             // Check for package files one level deep.
             DirectoryInfo rootDirectoryInfo = GetAndVerifyRootDirectory(root);
 
-            var idRoot = new DirectoryInfo(Path.Combine(rootDirectoryInfo.FullName, id));
+            var pathResolver = new VersionFolderPathResolver(rootDirectoryInfo.FullName);
+            var idRoot = new DirectoryInfo(pathResolver.GetVersionListPath(id));
             if (!idRoot.Exists)
             {
                 // Directory is missing
                 yield break;
             }
-
-            var pathResolver = new VersionFolderPathResolver(root);
 
             foreach (var versionDir in GetDirectoriesSafe(idRoot, log))
             {
@@ -955,14 +955,14 @@ namespace NuGet.Protocol
         /// </summary>
         /// <param name="packagePath">Package path</param>
         /// <returns>A list of package paths that match the input path.</returns>
-        public static IEnumerable<string> ResolvePackageFromPath(string packagePath)
+        public static IEnumerable<string> ResolvePackageFromPath(string packagePath, bool isSnupkg = false)
         {
             // Ensure packagePath ends with *.nupkg
-            packagePath = EnsurePackageExtension(packagePath);
+            packagePath = EnsurePackageExtension(packagePath, isSnupkg);
             return PathResolver.PerformWildcardSearch(Directory.GetCurrentDirectory(), packagePath);
         }
 
-        private static string EnsurePackageExtension(string packagePath)
+        private static string EnsurePackageExtension(string packagePath, bool isSnupkg)
         {
             if (packagePath.IndexOf('*') == -1)
             {
@@ -970,7 +970,8 @@ namespace NuGet.Protocol
                 return packagePath;
             }
             // If the path does not contain wildcards, we need to add *.nupkg to it.
-            if (!packagePath.EndsWith(NuGetConstants.PackageExtension, StringComparison.OrdinalIgnoreCase))
+            if (!packagePath.EndsWith(NuGetConstants.PackageExtension, StringComparison.OrdinalIgnoreCase)
+                && !packagePath.EndsWith(NuGetConstants.SnupkgExtension, StringComparison.OrdinalIgnoreCase))
             {
                 if (packagePath.EndsWith("**", StringComparison.OrdinalIgnoreCase))
                 {
@@ -980,7 +981,7 @@ namespace NuGet.Protocol
                 {
                     packagePath = packagePath + '*';
                 }
-                packagePath = packagePath + NuGetConstants.PackageExtension;
+                packagePath = packagePath + (isSnupkg? NuGetConstants.SnupkgExtension : NuGetConstants.PackageExtension);
             }
             return packagePath;
         }
@@ -1154,6 +1155,40 @@ namespace NuGet.Protocol
                 log.LogDebug(e.Message);
             }
             return fileInfo;
+        }
+
+        public static void GenerateNupkgMetadataFile(string nupkgPath, string installPath, string hashPath, string nupkgMetadataPath)
+        {
+            ConcurrencyUtilities.ExecuteWithFileLocked(nupkgPath,
+                action: () =>
+                {
+                    // make sure new hash file doesn't exists within File lock before actually creating it.
+                    if (!File.Exists(nupkgMetadataPath))
+                    {
+                        var tempNupkgMetadataFilePath = Path.Combine(installPath, Path.GetRandomFileName());
+                        using (var stream = File.Open(nupkgPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                        using (var packageReader = new PackageArchiveReader(stream))
+                        {
+                            // get hash of unsigned content of signed package
+                            var packageHash = packageReader.GetContentHashForSignedPackage(CancellationToken.None);
+
+                            // if null, then it's unsigned package so just read the existing sha512 file
+                            if (string.IsNullOrEmpty(packageHash))
+                            {
+                                packageHash = File.ReadAllText(hashPath);
+                            }
+
+                            // write the new hash file
+                            var hashFile = new NupkgMetadataFile()
+                            {
+                                ContentHash = packageHash
+                            };
+
+                            NupkgMetadataFileFormat.Write(tempNupkgMetadataFilePath, hashFile);
+                            File.Move(tempNupkgMetadataFilePath, nupkgMetadataPath);
+                        }
+                    }
+                });
         }
     }
 }

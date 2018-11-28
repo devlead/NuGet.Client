@@ -80,6 +80,7 @@ namespace NuGet.PackageManagement.UI
                     else
                     {
                         project.InstalledVersion = null;
+                        project.AutoReferenced = false;
                     }
                 }
                 catch(Exception ex)
@@ -146,10 +147,10 @@ namespace NuGet.PackageManagement.UI
         protected override void CreateVersions()
         {
             _versions = new List<DisplayVersion>();
-            var allVersions = _allPackageVersions?.OrderByDescending(v => v);
+            var allVersions = _allPackageVersions?.Where(v => v != null).OrderByDescending(v => v);
 
             // allVersions is null if server doesn't return any versions.
-            if (allVersions == null)
+            if (allVersions == null || !allVersions.Any())
             {
                 return;
             }

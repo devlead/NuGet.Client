@@ -37,27 +37,12 @@ namespace NuGet.PackageManagement
 
         public PackageRestoreManager(
             ISourceRepositoryProvider sourceRepositoryProvider,
-            Configuration.ISettings settings,
+            ISettings settings,
             ISolutionManager solutionManager)
         {
-            if (sourceRepositoryProvider == null)
-            {
-                throw new ArgumentNullException(nameof(sourceRepositoryProvider));
-            }
-
-            if (settings == null)
-            {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            if (solutionManager == null)
-            {
-                throw new ArgumentNullException(nameof(solutionManager));
-            }
-
-            SourceRepositoryProvider = sourceRepositoryProvider;
-            Settings = settings;
-            SolutionManager = solutionManager;
+            SourceRepositoryProvider = sourceRepositoryProvider ?? throw new ArgumentNullException(nameof(sourceRepositoryProvider));
+            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            SolutionManager = solutionManager ?? throw new ArgumentNullException(nameof(solutionManager));
         }
 
         [Obsolete("Enabling and querying legacy package restore is not supported in VS 2015 RTM.")]
@@ -71,12 +56,10 @@ namespace NuGet.PackageManagement
                 }
 
                 var solutionDirectory = SolutionManager.SolutionDirectory;
-                if (string.IsNullOrEmpty(solutionDirectory))
-                {
-                    return false;
-                }
 
-                return FileSystemUtility.FileExists(solutionDirectory, NuGetExeFile) &&
+                return string.IsNullOrEmpty(solutionDirectory)
+                    ? false
+                    : FileSystemUtility.FileExists(solutionDirectory, NuGetExeFile) &&
                        FileSystemUtility.FileExists(solutionDirectory, NuGetTargetsFile);
             }
         }
@@ -99,10 +82,7 @@ namespace NuGet.PackageManagement
                 missing = packages.Any(p => p.IsMissing);
             }
 
-            if (PackagesMissingStatusChanged != null)
-            {
-                PackagesMissingStatusChanged(this, new PackagesMissingStatusEventArgs(missing));
-            }
+            PackagesMissingStatusChanged?.Invoke(this, new PackagesMissingStatusEventArgs(missing));
         }
 
         /// <summary>
@@ -130,25 +110,23 @@ namespace NuGet.PackageManagement
         {
             var packages = new List<PackageRestoreData>();
 
-            if(packageReferencesDict == null || !packageReferencesDict.Any())
+            if (packageReferencesDict?.Any() == true)
             {
-                return packages;
-            }
+                var nuGetPackageManager = GetNuGetPackageManager(solutionDirectory);
 
-            var nuGetPackageManager = GetNuGetPackageManager(solutionDirectory);
-
-            foreach (var packageReference in packageReferencesDict.Keys)
-            {
-                var isMissing = false;
-                if (!nuGetPackageManager.PackageExistsInPackagesFolder(packageReference.PackageIdentity))
+                foreach (var packageReference in packageReferencesDict.Keys)
                 {
-                    isMissing = true;
+                    var isMissing = false;
+                    if (!nuGetPackageManager.PackageExistsInPackagesFolder(packageReference.PackageIdentity))
+                    {
+                        isMissing = true;
+                    }
+
+                    var projectNames = packageReferencesDict[packageReference];
+
+                    Debug.Assert(projectNames != null);
+                    packages.Add(new PackageRestoreData(packageReference, projectNames, isMissing));
                 }
-
-                var projectNames = packageReferencesDict[packageReference];
-
-                Debug.Assert(projectNames != null);
-                packages.Add(new PackageRestoreData(packageReference, projectNames, isMissing));
             }
 
             return packages;
@@ -214,9 +192,50 @@ namespace NuGet.PackageManagement
 
             using (var cacheContext = new SourceCacheContext())
             {
+                var logger = new LoggerAdapter(nuGetProjectContext);
+
                 var downloadContext = new PackageDownloadContext(cacheContext)
                 {
-                    ParentId = nuGetProjectContext.OperationId
+                    ParentId = nuGetProjectContext.OperationId,
+                    ClientPolicyContext = ClientPolicyContext.GetClientPolicy(Settings, logger)
+                };
+
+                return await RestoreMissingPackagesAsync(
+                    solutionDirectory,
+                    packages,
+                    nuGetProjectContext,
+                    downloadContext,
+                    token);
+            }
+        }
+
+        /// <summary>
+        /// Restores missing packages for the entire solution
+        /// </summary>
+        /// <returns></returns>
+        public virtual async Task<PackageRestoreResult> RestoreMissingPackagesInSolutionAsync(
+            string solutionDirectory,
+            INuGetProjectContext nuGetProjectContext,
+            ILogger logger,
+            CancellationToken token)
+        {
+            var packageReferencesDictionary = await GetPackagesReferencesDictionaryAsync(token);
+
+            // When this method is called, the step to compute if a package is missing is implicit. Assume it is true
+            var packages = packageReferencesDictionary.Select(p =>
+            {
+                Debug.Assert(p.Value != null);
+                return new PackageRestoreData(p.Key, p.Value, isMissing: true);
+            });
+
+            using (var cacheContext = new SourceCacheContext())
+            {
+                var adapterLogger = new LoggerAdapter(nuGetProjectContext);
+
+                var downloadContext = new PackageDownloadContext(cacheContext)
+                {
+                    ParentId = nuGetProjectContext.OperationId,
+                    ClientPolicyContext = ClientPolicyContext.GetClientPolicy(Settings, adapterLogger)
                 };
 
                 return await RestoreMissingPackagesAsync(
@@ -249,6 +268,17 @@ namespace NuGet.PackageManagement
                 PackageRestoreFailedEvent,
                 sourceRepositories: null,
                 maxNumberOfParallelTasks: PackageManagementConstants.DefaultMaxDegreeOfParallelism);
+
+            if (nuGetProjectContext.PackageExtractionContext == null)
+            {
+                var logger = new LoggerAdapter(nuGetProjectContext);
+
+                nuGetProjectContext.PackageExtractionContext = new PackageExtractionContext(
+                    PackageSaveMode.Defaultv2,
+                    PackageExtractionBehavior.XmlDocFileSaveMode,
+                    ClientPolicyContext.GetClientPolicy(Settings, logger),
+                    logger);
+            }
 
             return RestoreMissingPackagesAsync(packageRestoreContext, nuGetProjectContext, downloadContext);
         }
@@ -301,21 +331,6 @@ namespace NuGet.PackageManagement
             // Now, we are guaranteed to not restore the same package more than once
             var hashSetOfMissingPackageReferences = new HashSet<PackageReference>(missingPackages.Select(p => p.PackageReference), new PackageReferenceComparer());
 
-            // Before starting to restore package, set the nuGetProjectContext such that satellite files are not copied yet
-            // Satellite files will be copied as a post operation. This helps restore packages in parallel
-            // and not have to determine if the package is a satellite package beforehand
-            if (nuGetProjectContext.PackageExtractionContext == null)
-            {
-                var signedPackageVerifier = new PackageSignatureVerifier(SignatureVerificationProviderFactory.GetSignatureVerificationProviders());
-
-                nuGetProjectContext.PackageExtractionContext = new PackageExtractionContext(
-                    PackageSaveMode.Defaultv2,
-                    PackageExtractionBehavior.XmlDocFileSaveMode,
-                    new LoggerAdapter(nuGetProjectContext),
-                    signedPackageVerifier,
-                    SignedPackageVerifierSettings.GetDefault());
-            }
-
             nuGetProjectContext.PackageExtractionContext.CopySatelliteFiles = false;
 
             packageRestoreContext.Token.ThrowIfCancellationRequested();
@@ -332,7 +347,7 @@ namespace NuGet.PackageManagement
                 hashSetOfMissingPackageReferences,
                 packageRestoreContext,
                 nuGetProjectContext);
-                        
+
             return new PackageRestoreResult(
                 attemptedPackages.All(p => p.Restored),
                 attemptedPackages.Select(p => p.Package.PackageIdentity).ToList());
@@ -442,15 +457,16 @@ namespace NuGet.PackageManagement
                 exception = ex;
             }
 
-            if (packageRestoreContext.PackageRestoredEvent != null)
-            {
-                packageRestoreContext.PackageRestoredEvent(null, new PackageRestoredEventArgs(packageReference.PackageIdentity, restored));
-            }
+            packageRestoreContext.PackageRestoredEvent?.Invoke(null, new PackageRestoredEventArgs(packageReference.PackageIdentity, restored));
 
             // PackageReferences cannot be null here
             if (exception != null)
             {
-                nuGetProjectContext.Log(MessageLevel.Warning, exception.Message);
+                if (!string.IsNullOrEmpty(exception.Message))
+                {
+                    nuGetProjectContext.Log(MessageLevel.Warning, exception.Message);
+                }
+
                 if (packageRestoreContext.PackageRestoreFailedEvent != null)
                 {
                     var packageReferenceComparer = new PackageReferenceComparer();
@@ -462,9 +478,11 @@ namespace NuGet.PackageManagement
                     if (packageRestoreData != null)
                     {
                         Debug.Assert(packageRestoreData.ProjectNames != null);
-                        packageRestoreContext.PackageRestoreFailedEvent(null, new PackageRestoreFailedEventArgs(packageReference,
-                            exception,
-                            packageRestoreData.ProjectNames));
+                        packageRestoreContext.PackageRestoreFailedEvent(
+                            null,
+                            new PackageRestoreFailedEventArgs(packageReference,
+                                exception,
+                                packageRestoreData.ProjectNames));
                     }
                 }
             }

@@ -1,17 +1,19 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using NuGet.Common;
 using NuGet.Credentials;
 using NuGet.ProjectManagement;
+using NuGet.Protocol.Core.Types;
 using NuGet.VisualStudio;
+using IAsyncServiceProvider = Microsoft.VisualStudio.Shell.IAsyncServiceProvider;
 
 namespace NuGet.PackageManagement.VisualStudio
 {
@@ -20,33 +22,28 @@ namespace NuGet.PackageManagement.VisualStudio
     {
 
         private readonly Lazy<INuGetUILogger> _outputConsoleLogger;
-        private readonly IServiceProvider _serviceProvider;
+        private readonly IAsyncServiceProvider _asyncServiceProvider;
 
         [ImportingConstructor]
+        internal DefaultVSCredentialServiceProvider(Lazy<INuGetUILogger> outputConsoleLogger)
+            : this(AsyncServiceProvider.GlobalProvider, outputConsoleLogger)
+        { }
+
         internal DefaultVSCredentialServiceProvider(
-           [Import(typeof(SVsServiceProvider))]
-            IServiceProvider serviceProvider,
-           Lazy<INuGetUILogger> outputConsoleLogger
+            IAsyncServiceProvider asyncServiceProvider,
+            Lazy<INuGetUILogger> outputConsoleLogger
             )
         {
-            if (serviceProvider == null)
-            {
-                throw new ArgumentNullException(nameof(serviceProvider));
-            }
-            if (outputConsoleLogger == null)
-            {
-                throw new ArgumentNullException(nameof(outputConsoleLogger));
-            }
-            _serviceProvider = serviceProvider;
-            _outputConsoleLogger = outputConsoleLogger;
+            _asyncServiceProvider = asyncServiceProvider ?? throw new ArgumentNullException(nameof(asyncServiceProvider));
+            _outputConsoleLogger = outputConsoleLogger ?? throw new ArgumentNullException(nameof(outputConsoleLogger));
         }
 
-        [SuppressMessage("Microsoft.VisualStudio.Threading.Analyzers", "VSTHRD010", Justification = "NuGet/Home#4833 Baseline")]
-        public NuGet.Configuration.ICredentialService GetCredentialService()
+        public async Task<NuGet.Configuration.ICredentialService> GetCredentialServiceAsync()
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
             // Initialize the credential providers.
             var credentialProviders = new List<ICredentialProvider>();
+            var dte = await _asyncServiceProvider.GetDTEAsync();
+            var webProxy = await _asyncServiceProvider.GetServiceAsync<SVsWebProxy, IVsWebProxy>();
 
             TryAddCredentialProviders(
                 credentialProviders,
@@ -54,7 +51,7 @@ namespace NuGet.PackageManagement.VisualStudio
                 () =>
                 {
                     var importer = new VsCredentialProviderImporter(
-                        _serviceProvider.GetDTE(),
+                        dte,
                         VisualStudioAccountProvider.FactoryMethod,
                         (exception, failureMessage) => LogCredentialProviderError(exception, failureMessage));
 
@@ -66,14 +63,18 @@ namespace NuGet.PackageManagement.VisualStudio
                 Strings.CredentialProviderFailed_VisualStudioCredentialProvider,
                 () =>
                 {
-                    var webProxy = (IVsWebProxy)_serviceProvider.GetService(typeof(SVsWebProxy));
-
                     Debug.Assert(webProxy != null);
 
-                    return new NuGet.Credentials.ICredentialProvider[] {
+                    return new ICredentialProvider[] {
                         new VisualStudioCredentialProvider(webProxy)
                     };
                 });
+
+            await TryAddCredentialProvidersAsync(
+                credentialProviders,
+                Strings.CredentialProviderFailed_PluginCredentialProvider,
+                async () => await (new SecurePluginCredentialProviderBuilder(PluginManager.Instance, canShowDialog: true, logger: NullLogger.Instance).BuildAllAsync())
+                );
 
             if (PreviewFeatureSettings.DefaultCredentialsAfterCredentialProviders)
             {
@@ -82,22 +83,40 @@ namespace NuGet.PackageManagement.VisualStudio
                 Strings.CredentialProviderFailed_DefaultCredentialsCredentialProvider,
                 () =>
                 {
-                    return new NuGet.Credentials.ICredentialProvider[] {
+                    return new ICredentialProvider[] {
                         new DefaultCredentialsCredentialProvider()
                     };
                 });
             }
 
             // Initialize the credential service.
-            var credentialService = new CredentialService(credentialProviders, nonInteractive: false);
+            var credentialService = new CredentialService(new AsyncLazy<IEnumerable<ICredentialProvider>>(() => System.Threading.Tasks.Task.FromResult((IEnumerable<ICredentialProvider>)credentialProviders)), nonInteractive: false, handlesDefaultCredentials: PreviewFeatureSettings.DefaultCredentialsAfterCredentialProviders);
 
             return credentialService;
         }
 
-        private void TryAddCredentialProviders(
-            List<NuGet.Credentials.ICredentialProvider> credentialProviders,
+        private async System.Threading.Tasks.Task TryAddCredentialProvidersAsync(
+            List<ICredentialProvider> credentialProviders,
             string failureMessage,
-            Func<IEnumerable<NuGet.Credentials.ICredentialProvider>> factory)
+            Func<Task<IEnumerable<ICredentialProvider>>> factory)
+        {
+            try
+            {
+                foreach (var credentialProvider in await factory())
+                {
+                    credentialProviders.Add(credentialProvider);
+                }
+            }
+            catch (Exception exception)
+            {
+                LogCredentialProviderError(exception, failureMessage);
+            }
+        }
+
+        private void TryAddCredentialProviders(
+            List<ICredentialProvider> credentialProviders,
+            string failureMessage,
+            Func<IEnumerable<ICredentialProvider>> factory)
         {
             try
             {

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -12,6 +13,7 @@ using Newtonsoft.Json;
 using NuGet.Commands;
 using NuGet.Common;
 using NuGet.Configuration;
+using NuGet.Credentials;
 using NuGet.ProjectModel;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
@@ -61,15 +63,43 @@ namespace NuGet.Build.Tasks
         /// Force restore, skip no op
         /// </summary>
         public bool RestoreForce { get; set; }
-        
+
         /// <summary>
         /// Do not display Errors and Warnings to the user. 
         /// The Warnings and Errors are written into the assets file and will be read by an sdk target.
         /// </summary>
         public bool HideWarningsAndErrors { get; set; }
 
+        /// <summary>
+        /// Set this property if you want to get an interactive restore
+        /// </summary>
+        public bool Interactive { get; set; }
+
+        /// <summary>
+        /// Reevaluate resotre graph even with a lock file, skip no op as well.
+        /// </summary>
+        public bool RestoreForceEvaluate { get; set; }
+
         public override bool Execute()
         {
+#if DEBUG
+            var debugPackTask = Environment.GetEnvironmentVariable("DEBUG_RESTORE_TASK");
+            if (!string.IsNullOrEmpty(debugPackTask) && debugPackTask.Equals(bool.TrueString, StringComparison.OrdinalIgnoreCase))
+            {
+#if IS_CORECLR
+                Console.WriteLine("Waiting for debugger to attach.");
+                Console.WriteLine($"Process ID: {Process.GetCurrentProcess().Id}");
+
+                while (!Debugger.IsAttached)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
+                Debugger.Break();
+#else
+            Debugger.Launch();
+#endif
+            }
+#endif
             var log = new MSBuildLogger(Log);
 
             // Log inputs
@@ -80,6 +110,7 @@ namespace NuGet.Build.Tasks
             log.LogDebug($"(in) RestoreRecursive '{RestoreRecursive}'");
             log.LogDebug($"(in) RestoreForce '{RestoreForce}'");
             log.LogDebug($"(in) HideWarningsAndErrors '{HideWarningsAndErrors}'");
+            log.LogDebug($"(in) RestoreForceEvaluate '{RestoreForceEvaluate}'");
 
             try
             {
@@ -153,13 +184,16 @@ namespace NuGet.Build.Tasks
                     PreLoadedRequestProviders = providers,
                     CachingSourceProvider = sourceProvider,
                     AllowNoOp = !RestoreForce,
-                    HideWarningsAndErrors = HideWarningsAndErrors
+                    HideWarningsAndErrors = HideWarningsAndErrors,
+                    RestoreForceEvaluate = RestoreForceEvaluate
                 };
 
                 if (restoreContext.DisableParallel)
                 {
                     HttpSourceResourceProvider.Throttle = SemaphoreSlimThrottle.CreateBinarySemaphore();
                 }
+
+                DefaultCredentialServiceUtility.SetupDefaultCredentialService(log, !Interactive);
 
                 _cts.Token.ThrowIfCancellationRequested();
 
@@ -171,7 +205,6 @@ namespace NuGet.Build.Tasks
                 return restoreSummaries.All(x => x.Success);
             }
         }
-
         private static void ConfigureProtocol()
         {
             // Set connection limit

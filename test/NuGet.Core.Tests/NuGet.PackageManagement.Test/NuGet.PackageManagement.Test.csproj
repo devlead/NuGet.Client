@@ -1,5 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'README.md'))\build\common.test.props" />
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
   <PropertyGroup>
     <TargetFrameworks>net46</TargetFrameworks>
@@ -18,6 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="$(SharedDirectory)\HashCodeCombiner.cs">
       <Link>HashCodeCombiner.cs</Link>
     </Compile>
@@ -28,5 +35,6 @@
     <Reference Include="System.Net.Http" />
   </ItemGroup>
 
-  <Import Project="$(BuildCommonDirectory)common.targets" />
+  <Import Project="$(BuildCommonDirectory)common.targets"/>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

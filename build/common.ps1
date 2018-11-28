@@ -194,6 +194,8 @@ Function Install-DotnetCLI {
     param(
         [switch]$Force
     )
+    $msbuildExe = 'C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\bin\msbuild.exe'
+    $CliTargetBranch = & $msbuildExe $NuGetClientRoot\build\config.props /v:m /nologo /t:GetCliTargetBranch
 
     $cli = @{
             Root = $CLIRoot
@@ -212,8 +214,8 @@ Function Install-DotnetCLI {
         $DotNetInstall = Join-Path $cli.Root 'dotnet-install.ps1'
 
         Invoke-WebRequest $cli.DotNetInstallUrl -OutFile $DotNetInstall
-
-        & $DotNetInstall -Channel Master -i $cli.Root -Version 2.2.0-preview1-007853
+        $channel = $CliTargetBranch.Trim()
+        & $DotNetInstall -Channel $channel  -i $cli.Root
     }
 
     if (-not (Test-Path $cli.DotNetExe)) {
@@ -410,14 +412,14 @@ Function Set-DelaySigning {
 }
 
 Function Get-BuildNumber() {
-    $SemanticVersionDate = '2017-10-12'
+    $SemanticVersionDate = '2018-05-30' # Date format - yyyy-mm-dd
     try {
         [uint16](((Get-Date) - (Get-Date $SemanticVersionDate)).TotalMinutes / 5)
     }
     catch {
         # Build number is a 16-bit integer. The limitation is imposed by VERSIONINFO.
         # https://msdn.microsoft.com/en-gb/library/aa381058.aspx
-        Error-Log "Build number is out of range! Consider advancing SemanticVersionDate." -Fatal
+        Error-Log "Build number is out of range! Consider advancing SemanticVersionDate in common.ps1." -Fatal
     }
 }
 

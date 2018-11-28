@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -46,8 +47,19 @@ namespace NuGet.Commands
                         fingerprint,
                         _defaultFingerprintAlgorithm)).ToList();
 
-                var verifierSettings = SignedPackageVerifierSettings.GetVerifyCommandDefaultPolicy(clientAllowListEntries: allowListEntries);
-                var verificationProviders = SignatureVerificationProviderFactory.GetSignatureVerificationProviders();
+                var verifierSettings = SignedPackageVerifierSettings.GetVerifyCommandDefaultPolicy();
+                var verificationProviders = new List<ISignatureVerificationProvider>()
+                {
+                    new IntegrityVerificationProvider(),
+                    new SignatureTrustAndValidityVerificationProvider()
+                };
+
+                verificationProviders.Add(
+                    new AllowListVerificationProvider(
+                        allowListEntries,
+                        requireNonEmptyAllowList: false,
+                        noMatchErrorMessage: Strings.Error_NoMatchingCertificate));
+
                 var verifier = new PackageSignatureVerifier(verificationProviders);
 
                 foreach (var package in packagesToVerify)
@@ -81,7 +93,7 @@ namespace NuGet.Commands
                     packageIdentity.ToString()));
                 logger.LogInformation($"{packagePath}{Environment.NewLine}");
 
-                var logMessages = verificationResult.Results.SelectMany(p => p.Issues).Select(p => p.ToLogMessage()).ToList();
+                var logMessages = verificationResult.Results.SelectMany(p => p.Issues).ToList();
                 await logger.LogMessagesAsync(logMessages);
 
                 if (logMessages.Any(m => m.Level >= LogLevel.Warning))
@@ -94,7 +106,7 @@ namespace NuGet.Commands
                     result = errors;
                 }
 
-                if (verificationResult.Valid)
+                if (verificationResult.IsValid)
                 {
                     logger.LogInformation(Environment.NewLine + string.Format(CultureInfo.CurrentCulture, Strings.VerifyCommand_Success, packageIdentity.ToString()));
                 }

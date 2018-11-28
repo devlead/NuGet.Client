@@ -278,6 +278,23 @@ namespace NuGet.Commands.Test
             UnresolvedMessages.GetBestMatch(versions, range).ShouldBeEquivalentTo(NuGetVersion.Parse(expected));
         }
 
+        [Theory]
+        // Any time there is a upper bound, we go to the first version above the upper bound
+        [InlineData("[1.*,2.0.0]", "3.0.0", "0.1.0,0.3.0,0.9.9,3.0.0")] // has LowerBound, has UpperBound, floating - inclusivity doesn't matter for this command as it's not selecting assets.
+        [InlineData("(1.0.1,2.0.0]", "3.0.0", "0.1.0,0.3.0,0.9.9,3.0.0")] // has LowerBound, has UpperBound, not floating
+        [InlineData("(,2.0.0]", "2.0.1", "2.0.1,2.5.0,3.0.0")] // no LowerBound, has UpperBound, not floating => no LowerBound, has UpperBound, floating is not a valid scenario
+         // if it has a lower bound, it's always the one under
+        [InlineData("[1.0.0,)", "0.9", "0.0.1,0.0.5,0.1,0.9")] // lower bound, no upper bound, no floating
+        [InlineData("[1.*,)", "0.9", "0.0.1,0.0.5,0.1,0.9")] // lower bound, no upper bound, floating
+        [InlineData("*", "2.1.0-preview1-final", "0.0.1-alpha,2.1.0-preview1-final")] // lower bound, no upper bound, floating
+        public void GivenVersionRangeVerifyBestMatch(string versionRange, string expectedVersion, string versionStrings)
+        {
+            var range = VersionRange.Parse(versionRange);
+            var versions = new SortedSet<NuGetVersion>(versionStrings.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(NuGetVersion.Parse));
+            Assert.Null(range.FindBestMatch(versions));
+            UnresolvedMessages.GetBestMatch(versions, range).ShouldBeEquivalentTo(NuGetVersion.Parse(expectedVersion));
+        }
+
         [Fact]
         public void GivenNoVersionsVerifyBestMatch()
         {
@@ -398,6 +415,22 @@ namespace NuGet.Commands.Test
             var versions = new[] { NuGetVersion.Parse("1.0.0-beta") };
 
             UnresolvedMessages.HasPrereleaseVersionsOnly(range, versions).Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task GivenAnUnreachableSource_DoesNotThrow()
+        {
+            var source = new PackageSource("http://nuget.org/a/");
+            var context = new Mock<SourceCacheContext>();
+            var provider = new Mock<IRemoteDependencyProvider>();
+            provider.Setup(e => e.GetAllVersionsAsync(It.IsAny<string>(), It.IsAny<SourceCacheContext>(), It.IsAny<ILogger>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(() => null); // unreachable sources would return null
+            provider.SetupGet(e => e.Source).Returns(source);
+
+            var info = await UnresolvedMessages.GetSourceInfoForIdAsync(provider.Object, "a", context.Object, NullLogger.Instance, CancellationToken.None);
+
+            info.Value.Should().BeEmpty();
+            info.Key.Source.Should().Be(source.Source);
         }
 
         private static Mock<IRemoteDependencyProvider> GetProvider(string source, IEnumerable<NuGetVersion> versions)

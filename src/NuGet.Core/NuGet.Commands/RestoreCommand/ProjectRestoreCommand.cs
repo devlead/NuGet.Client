@@ -5,7 +5,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,8 +23,10 @@ namespace NuGet.Commands
     internal class ProjectRestoreCommand
     {
         private readonly RestoreCollectorLogger _logger;
-
         private readonly ProjectRestoreRequest _request;
+
+        private const string WalkFrameworkDependencyDuration = "WalkFrameworkDependencyDuration";
+        private const string WalkRuntimeDependencyDuration = "WalkRuntimeDependencyDuration";
 
         public Guid ParentId { get; }
 
@@ -43,13 +44,16 @@ namespace NuGet.Commands
             RemoteDependencyWalker remoteWalker,
             RemoteWalkContext context,
             bool forceRuntimeGraphCreation,
-            CancellationToken token)
+            CancellationToken token,
+            TelemetryActivity telemetryActivity)
         {
             var allRuntimes = RuntimeGraph.Empty;
             var frameworkTasks = new List<Task<RestoreTargetGraph>>();
             var graphs = new List<RestoreTargetGraph>();
             var runtimesByFramework = frameworkRuntimePairs.ToLookup(p => p.Framework, p => p.RuntimeIdentifier);
             var success = true;
+
+            telemetryActivity.StartIntervalMeasure();
 
             foreach (var pair in runtimesByFramework)
             {
@@ -66,6 +70,8 @@ namespace NuGet.Commands
 
             graphs.AddRange(frameworkGraphs);
 
+            telemetryActivity.EndIntervalMeasure(WalkFrameworkDependencyDuration);
+
             success &= await InstallPackagesAsync(graphs,
                 userPackageFolder,
                 token);
@@ -79,6 +85,8 @@ namespace NuGet.Commands
             // Resolve runtime dependencies
             if (hasNonEmptyRIDs || forceRuntimeGraphCreation)
             {
+                telemetryActivity.StartIntervalMeasure();
+
                 var localRepositories = new List<NuGetv3LocalRepository>();
                 localRepositories.Add(userPackageFolder);
                 localRepositories.AddRange(fallbackPackageFolders);
@@ -110,6 +118,8 @@ namespace NuGet.Commands
                 }
 
                 graphs.AddRange(runtimeGraphs);
+
+                telemetryActivity.EndIntervalMeasure(WalkRuntimeDependencyDuration);
 
                 // Install runtime-specific packages
                 success &= await InstallPackagesAsync(runtimeGraphs,
@@ -295,7 +305,19 @@ namespace NuGet.Commands
                 }
                 catch (SignatureException e)
                 {
-                    await _logger.LogMessagesAsync(e.Results.SelectMany(p => p.Issues).Select(p => p.ToLogMessage()));
+                    if (!string.IsNullOrEmpty(e.Message))
+                    {
+                        await _logger.LogAsync(e.AsLogMessage());
+                    }
+
+                    // If the package is unsigned and unsigned packages are not allowed a SignatureException
+                    // will be thrown but it won't have results because it didn't went through any
+                    // verification provider.
+                    if (e.Results != null)
+                    {
+                        await _logger.LogMessagesAsync(e.Results.SelectMany(p => p.Issues));
+                    }
+
                     return false;
                 }
             }

@@ -12,6 +12,7 @@ using NuGet.Packaging;
 using NuGet.ProjectModel;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
+using NuGet.Shared;
 
 namespace NuGet.Commands
 {
@@ -60,6 +61,10 @@ namespace NuGet.Commands
         public bool HideWarningsAndErrors { get; set; } = false;
 
         public Guid ParentId { get; set; }
+
+        public bool IsRestoreOriginalAction { get; set; } = true;
+
+        public bool RestoreForceEvaluate { get; set; }
 
         // Cache directory -> ISettings
         private ConcurrentDictionary<string, ISettings> _settingsCache
@@ -122,8 +127,13 @@ namespace NuGet.Commands
             {
                 throw new ArgumentNullException(nameof(settings));
             }
+            var values = settings.GetConfigRoots();
+            if(dgSpecSources != null)
+            {
+                values.AddRange(dgSpecSources.Select(e => e.Source));
+            }
 
-            var cacheKey = string.Join("|", settings.Priority.Select(e => e.Root));
+            var cacheKey = string.Join("|", values);
 
             return _sourcesCache.GetOrAdd(cacheKey, (root) => GetEffectiveSourcesCore(settings, dgSpecSources));
         }
@@ -168,8 +178,6 @@ namespace NuGet.Commands
 
         public void ApplyStandardProperties(RestoreRequest request)
         {
-            request.PackageSaveMode = PackageSaveMode;
-
             if (request.ProjectStyle == ProjectStyle.PackageReference
                 || request.ProjectStyle == ProjectStyle.DotnetToolReference
                 || request.ProjectStyle == ProjectStyle.Standalone)
@@ -221,6 +229,9 @@ namespace NuGet.Commands
 
             request.AllowNoOp = !request.CacheContext.NoCache && AllowNoOp;
             request.HideWarningsAndErrors = HideWarningsAndErrors;
+            request.ParentId = ParentId;
+            request.IsRestoreOriginalAction = IsRestoreOriginalAction;
+            request.RestoreForceEvaluate = RestoreForceEvaluate;
         }
     }
 }

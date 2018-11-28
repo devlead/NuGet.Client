@@ -1,7 +1,6 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'README.md'))\build\common.props" />
-
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup>
     <TargetFramework>net46</TargetFramework>
     <SkipSigning>true</SkipSigning>
@@ -16,12 +15,6 @@
   <ItemGroup>
     <PackageReference Include="EnvDTE" Version="8.0.1" />
     <PackageReference Include="Microsoft.PowerShell.3.ReferenceAssemblies" Version="1.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="$(NuGetClientsSrcDirectory)NuGet.VisualStudio\NuGet.VisualStudio.csproj">
-      <EmbedInteropTypes>true</EmbedInteropTypes>
-    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup Condition="'$(VisualStudioVersion)' == '15.0'">
@@ -41,6 +34,10 @@
     <PackageReference Include="Microsoft.VisualStudio.Threading" Version="14.1.131" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\NuGet.Clients\NuGet.PackageManagement.VisualStudio\NuGet.PackageManagement.VisualStudio.csproj" />
+  </ItemGroup>
+
   <Import Project="$(BuildCommonDirectory)common.targets" />
 
   <Target Name="DeployToArtifacts" AfterTargets="Build;Rebuild">
@@ -55,4 +52,6 @@
     <Message Text="$(TargetPath) -&gt; $(PublishDestination)" Importance="high" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PublishDestination)" OverwriteReadOnlyFiles="true" />
   </Target>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

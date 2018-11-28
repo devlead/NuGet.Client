@@ -31,7 +31,7 @@ namespace NuGet.Packaging.FuncTest
 
         private SigningTestFixture _testFixture;
         private TrustedTestCert<TestCertificate> _trustedTestCert;
-        private IList<ISignatureVerificationProvider> _trustProviders;
+        private readonly IList<ISignatureVerificationProvider> _trustProviders;
 
         private readonly SignedPackageVerifierSettings _settings;
 
@@ -52,9 +52,11 @@ namespace NuGet.Packaging.FuncTest
                 allowMultipleTimestamps: true,
                 allowNoTimestamp: true,
                 allowUnknownRevocation: true,
-                allowNoClientCertificateList: true,
-                allowNoRepositoryCertificateList: true,
-                alwaysVerifyCountersignature: false);
+                reportUnknownRevocation: true,
+                verificationTarget: VerificationTarget.All,
+                signaturePlacement: SignaturePlacement.Any,
+                repositoryCountersignatureVerificationBehavior: SignatureVerificationBehavior.IfExistsAndIsNecessary,
+                revocationMode: RevocationMode.Online);
         }
 
         [CIOnlyFact]
@@ -85,7 +87,7 @@ namespace NuGet.Packaging.FuncTest
                     var resultsWithErrors = result.Results.Where(r => r.GetErrorIssues().Any());
 
                     // Assert
-                    result.Valid.Should().BeTrue();
+                    result.IsValid.Should().BeTrue();
                     resultsWithErrors.Count().Should().Be(0);
                 }
             }
@@ -112,7 +114,7 @@ namespace NuGet.Packaging.FuncTest
                     var resultsWithErrors = result.Results.Where(r => r.GetErrorIssues().Any());
 
                     // Assert
-                    result.Valid.Should().BeTrue();
+                    result.IsValid.Should().BeTrue();
                     resultsWithErrors.Count().Should().Be(0);
                 }
             }
@@ -146,7 +148,7 @@ namespace NuGet.Packaging.FuncTest
                     var resultsWithErrors = result.Results.Where(r => r.GetErrorIssues().Any());
 
                     // Assert
-                    result.Valid.Should().BeTrue();
+                    result.IsValid.Should().BeTrue();
                     resultsWithErrors.Count().Should().Be(0);
                 }
             }
@@ -180,7 +182,7 @@ namespace NuGet.Packaging.FuncTest
                     var resultsWithErrors = result.Results.Where(r => r.GetErrorIssues().Any());
 
                     // Assert
-                    result.Valid.Should().BeTrue();
+                    result.IsValid.Should().BeTrue();
                     resultsWithErrors.Count().Should().Be(0);
                 }
             }
@@ -215,7 +217,7 @@ namespace NuGet.Packaging.FuncTest
                     var resultsWithErrors = result.Results.Where(r => r.GetErrorIssues().Any());
 
                     // Assert
-                    result.Valid.Should().BeTrue();
+                    result.IsValid.Should().BeTrue();
                     resultsWithErrors.Count().Should().Be(0);
                 }
             }
@@ -251,7 +253,7 @@ namespace NuGet.Packaging.FuncTest
                     var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                     // Assert
-                    result.Valid.Should().BeFalse();
+                    result.IsValid.Should().BeFalse();
                     resultsWithErrors.Count().Should().Be(1);
                     totalErrorIssues.Count().Should().Be(1);
                     totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -315,7 +317,7 @@ namespace NuGet.Packaging.FuncTest
                     var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                     // Assert
-                    result.Valid.Should().BeFalse();
+                    result.IsValid.Should().BeFalse();
                     resultsWithErrors.Count().Should().Be(1);
                     totalErrorIssues.Count().Should().Be(1);
                     totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -413,7 +415,7 @@ namespace NuGet.Packaging.FuncTest
                         var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                         // Assert
-                        result.Valid.Should().BeFalse();
+                        result.IsValid.Should().BeFalse();
                         resultsWithErrors.Count().Should().Be(1);
                         totalErrorIssues.Count().Should().Be(1);
                         totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -521,7 +523,7 @@ namespace NuGet.Packaging.FuncTest
                         var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                         // Assert
-                        result.Valid.Should().BeFalse();
+                        result.IsValid.Should().BeFalse();
                         resultsWithErrors.Count().Should().Be(1);
                         totalErrorIssues.Count().Should().Be(1);
                         totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -597,7 +599,7 @@ namespace NuGet.Packaging.FuncTest
                         var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                         // Assert
-                        result.Valid.Should().BeFalse();
+                        result.IsValid.Should().BeFalse();
                         resultsWithErrors.Count().Should().Be(1);
                         totalErrorIssues.Count().Should().Be(1);
                         totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -673,7 +675,7 @@ namespace NuGet.Packaging.FuncTest
                         var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                         // Assert
-                        result.Valid.Should().BeFalse();
+                        result.IsValid.Should().BeFalse();
                         resultsWithErrors.Count().Should().Be(1);
                         totalErrorIssues.Count().Should().Be(1);
                         totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -749,7 +751,7 @@ namespace NuGet.Packaging.FuncTest
                         var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                         // Assert
-                        result.Valid.Should().BeFalse();
+                        result.IsValid.Should().BeFalse();
                         resultsWithErrors.Count().Should().Be(1);
                         totalErrorIssues.Count().Should().Be(1);
                         totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -825,7 +827,7 @@ namespace NuGet.Packaging.FuncTest
                         var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                         // Assert
-                        result.Valid.Should().BeFalse();
+                        result.IsValid.Should().BeFalse();
                         resultsWithErrors.Count().Should().Be(1);
                         totalErrorIssues.Count().Should().Be(1);
                         totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -904,7 +906,7 @@ namespace NuGet.Packaging.FuncTest
                         var totalErrorIssues = resultsWithErrors.SelectMany(r => r.GetErrorIssues());
 
                         // Assert
-                        result.Valid.Should().BeFalse();
+                        result.IsValid.Should().BeFalse();
                         resultsWithErrors.Count().Should().Be(1);
                         totalErrorIssues.Count().Should().Be(1);
                         totalErrorIssues.First().Code.Should().Be(NuGetLogCode.NU3005);
@@ -940,6 +942,67 @@ namespace NuGet.Packaging.FuncTest
 
                     // Assert
                     AssertSignatureEntryMetadataThrowsException(packageWriteStream);
+                }
+            }
+        }
+
+        [CIOnlyFact]
+        public async Task VerifyPackageContentHash_SignedPackagesAsync()
+        {
+            // Arrange
+            var nupkg = new SimpleTestPackageContext();
+
+            string expectedHash = null;
+
+            using (var zipStream = await nupkg.CreateAsStreamAsync())
+            {
+                expectedHash = Convert.ToBase64String(new CryptoHashProvider("SHA512").CalculateHash(zipStream));
+            }
+
+            using (var dir = TestDirectory.Create())
+            using (var testCertificate = new X509Certificate2(_trustedTestCert.Source.Cert))
+            {
+                var signedPackagePath = await SignedArchiveTestUtility.AuthorSignPackageAsync(testCertificate, nupkg, dir);
+
+                var verifier = new PackageSignatureVerifier(_trustProviders);
+
+                using (var packageReader = new PackageArchiveReader(signedPackagePath))
+                {
+                    // Act
+                    var result = packageReader.GetContentHashForSignedPackage(CancellationToken.None);
+
+                    // Assert
+                    result.Should().NotBeNullOrEmpty();
+                    Assert.Equal(expectedHash, result);
+                }
+            }
+        }
+
+        [CIOnlyFact]
+        public async Task ReadSignedArchiveMetadata_InvalidSignatureFileEntry_IgnoreVerifySignatureEntry()
+        {
+            // Arrange
+            var nupkg = new SimpleTestPackageContext();
+
+            using (var packageStream = await nupkg.CreateAsStreamAsync())
+            using (var testCertificate = new X509Certificate2(_trustedTestCert.Source.Cert))
+            {
+                var signature = await SignedArchiveTestUtility.CreateAuthorSignatureForPackageAsync(testCertificate, packageStream);
+                using (var package = new ZipArchive(packageStream, ZipArchiveMode.Update, leaveOpen: true))
+                {
+                    var signatureEntry = package.CreateEntry(_specification.SignaturePath, CompressionLevel.Optimal);
+                    using (var signatureStream = new MemoryStream(signature.GetBytes()))
+                    using (var signatureEntryStream = signatureEntry.Open())
+                    {
+                        signatureStream.CopyTo(signatureEntryStream);
+                    }
+                }
+
+                using (var reader = new BinaryReader(packageStream, _readerEncoding, leaveOpen: true))
+                {
+                    var metadata = SignedPackageArchiveIOUtility.ReadSignedArchiveMetadata(reader, validateSignatureEntry:false);
+
+                    Assert.NotNull(metadata);
                 }
             }
         }

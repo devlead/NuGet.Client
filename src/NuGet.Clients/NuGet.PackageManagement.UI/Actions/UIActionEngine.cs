@@ -15,7 +15,6 @@ using NuGet.Packaging.Core;
 using NuGet.ProjectManagement;
 using NuGet.Protocol.Core.Types;
 using NuGet.VisualStudio;
-using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Task = System.Threading.Tasks.Task;
@@ -151,7 +150,7 @@ namespace NuGet.PackageManagement.UI
                 Resources.WindowTitle_NuGetMigrator,
                 NuGetProject.GetUniqueNameOrName(nuGetProject));
 
-            using (var progressDialogSession = context.StartModalProgressDialog(windowTitle, progressDialogData, uiService))
+            using (var progressDialogSession = await context.StartModalProgressDialogAsync(windowTitle, progressDialogData, uiService))
             {
                 backupPath = await PackagesConfigToPackageReferenceMigrator.DoUpgradeAsync(
                     context,
@@ -538,11 +537,19 @@ namespace NuGet.PackageManagement.UI
             {
                 var licenseInfoItems = licenseMetadata
                     .Where(p => p.RequireLicenseAcceptance)
-                    .Select(e => new PackageLicenseInfo(e.Identity.Id, e.LicenseUrl, e.Authors));
+                    .Select(e => GeneratePackageLicenseInfo(e));
                 return uiService.PromptForLicenseAcceptance(licenseInfoItems);
             }
 
             return true;
+        }
+
+        private PackageLicenseInfo GeneratePackageLicenseInfo(IPackageSearchMetadata metadata)
+        {
+            return new PackageLicenseInfo(
+                metadata.Identity.Id,
+                PackageLicenseUtilities.GenerateLicenseLinks(metadata),
+                metadata.Authors);
         }
 
         /// <summary>
@@ -577,20 +584,23 @@ namespace NuGet.PackageManagement.UI
             SourceCacheContext sourceCacheContext,
             CancellationToken token)
         {
-            var processedDirectInstalls = new HashSet<PackageIdentity>(PackageIdentity.Comparer);
-            foreach (var projectActions in actions.GroupBy(e => e.Project))
+            var nuGetProjects = actions.Select(action => action.Project);
+            var nuGetActions = actions.Select(action => action.Action);
+
+            var directInstall = GetDirectInstall(nuGetActions, userAction, commonOperations);
+            if (directInstall != null)
             {
-                var nuGetProjectActions = projectActions.Select(e => e.Action);
-                var directInstall = GetDirectInstall(nuGetProjectActions, userAction, commonOperations);
-                if (directInstall != null
-                    && !processedDirectInstalls.Contains(directInstall))
-                {
-                    NuGetPackageManager.SetDirectInstall(directInstall, projectContext);
-                    processedDirectInstalls.Add(directInstall);
-                }
-                await _packageManager.ExecuteNuGetProjectActionsAsync(projectActions.Key, nuGetProjectActions, projectContext, sourceCacheContext, token);
-                NuGetPackageManager.ClearDirectInstall(projectContext);
+                NuGetPackageManager.SetDirectInstall(directInstall, projectContext);
             }
+
+            await _packageManager.ExecuteNuGetProjectActionsAsync(
+                nuGetProjects,
+                nuGetActions,
+                projectContext,
+                sourceCacheContext,
+                token);
+
+            NuGetPackageManager.ClearDirectInstall(projectContext);
         }
 
         private static PackageIdentity GetDirectInstall(IEnumerable<NuGetProjectAction> nuGetProjectActions,

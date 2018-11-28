@@ -1,11 +1,9 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -181,14 +179,18 @@ namespace NuGet.SolutionRestoreManager
         /// <summary>
         /// Show error window.
         /// </summary>
-        [SuppressMessage("Microsoft.VisualStudio.Threading.Analyzers", "VSTHRD010", Justification = "NuGet/Home#4833 Baseline")]
         public void BringToFront()
         {
             EnsureInitialized();
 
-            // Give the error list focus.
-            var vsErrorList = _errorList as IVsErrorList;
-            vsErrorList?.BringToFront();
+            NuGetUIThreadHelper.JoinableTaskFactory.Run(async () =>
+            {
+                await NuGetUIThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Give the error list focus.
+                var vsErrorList = _errorList as IVsErrorList;
+                vsErrorList?.BringToFront();
+            });
         }
 
         // Lock before calling

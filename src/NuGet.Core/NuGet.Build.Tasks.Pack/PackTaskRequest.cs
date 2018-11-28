@@ -25,10 +25,12 @@ namespace NuGet.Build.Tasks.Pack
         public bool IncludeBuildOutput { get; set; }
         public bool IncludeSource { get; set; }
         public bool IncludeSymbols { get; set; }
+        public bool InstallPackageToOutputPath { get; set; }
         public bool IsTool { get; set; }
         public string LicenseUrl { get; set; }
         public ILogger Logger { get; set; }
         public string MinClientVersion { get; set; }
+        public bool NoDefaultExcludes { get; set; }
         public bool NoPackageAnalysis { get; set; }
         public string NuspecFile { get; set; }
         public string NuspecOutputPath { get; set; }
@@ -43,6 +45,7 @@ namespace NuGet.Build.Tasks.Pack
         public string ProjectUrl { get; set; }
         public string NuspecBasePath { get; set; }
         public string[] NuspecProperties { get; set; }
+        public bool OutputFileNamesWithoutVersion { get; set; }
         public string ReleaseNotes { get; set; }
         public string RepositoryType { get; set; }
         public string RepositoryUrl { get; set; }
@@ -59,5 +62,11 @@ namespace NuGet.Build.Tasks.Pack
         public string NoWarn { get; set; }
         public string TreatWarningsAsErrors { get; set; }
         public string WarningsAsErrors { get; set; }
+        public IMSBuildItem[] FrameworksWithSuppressedDependencies { get; set; }
+        public string SymbolPackageFormat { get; set; }
+        public string PackageLicenseFile { get; set; }
+        public string PackageLicenseExpression { get; set; }
+        public string PackageLicenseExpressionVersion { get; set; }
+
     }
 }

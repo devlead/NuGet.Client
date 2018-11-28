@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
@@ -7,6 +7,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft;
+using Microsoft.VisualStudio.Threading;
 using Moq;
 using NuGet.Common;
 using NuGet.Configuration;
@@ -20,12 +22,24 @@ using NuGet.ProjectManagement.Projects;
 using NuGet.ProjectModel;
 using NuGet.Test.Utility;
 using NuGet.Versioning;
+using Test.Utility.Threading;
 using Xunit;
 
 namespace NuGet.VisualStudio.Implementation.Test.Extensibility
 {
+    [Collection(DispatcherThreadCollection.CollectionName)]
     public class VsPathContextProviderTests
     {
+        private readonly JoinableTaskFactory _jtf;
+
+        public VsPathContextProviderTests(DispatcherThreadFixture fixture)
+        {
+            Assumes.Present(fixture);
+
+            _jtf = fixture.JoinableTaskFactory;
+            NuGetUIThreadHelper.SetCustomJoinableTaskFactory(_jtf);
+        }
+
         [Fact]
         public void GetSolutionPathContext_WithConfiguredUserPackageFolder()
         {
@@ -34,8 +48,9 @@ namespace NuGet.VisualStudio.Implementation.Test.Extensibility
 
             var settings = Mock.Of<ISettings>();
             Mock.Get(settings)
-                .Setup(x => x.GetValue("config", "globalPackagesFolder", true))
-                .Returns(() => "solution/packages");
+                .Setup(x => x.GetSection("config"))
+                .Returns(() => new VirtualSettingSection("config",
+                    new AddItem("globalPackagesFolder", "solution/packages")));
 
             var target = new VsPathContextProvider(
                 settings,
@@ -59,12 +74,11 @@ namespace NuGet.VisualStudio.Implementation.Test.Extensibility
 
             var settings = new Mock<ISettings>();
             settings
-                .Setup(x => x.GetSettingValues("fallbackPackageFolders", true))
-                .Returns(() => new List<SettingValue>
-                {
-                    new SettingValue("a", "solution/packagesA", isMachineWide: false),
-                    new SettingValue("b", "solution/packagesB", isMachineWide: false)
-                });
+                .Setup(x => x.GetSection("fallbackPackageFolders"))
+                .Returns(() => new VirtualSettingSection("fallbackPackageFolders",
+                    new AddItem("a", "solution/packagesA"),
+                    new AddItem("b", "solution/packagesB")
+                ));
 
             var target = new VsPathContextProvider(
                 settings.Object,
@@ -180,8 +194,10 @@ namespace NuGet.VisualStudio.Implementation.Test.Extensibility
 
                 var settings = Mock.Of<ISettings>();
                 Mock.Get(settings)
-                    .Setup(x => x.GetValue("config", "globalPackagesFolder", true))
-                    .Returns(() => userPackageFolder);
+                    .Setup(x => x.GetSection("config"))
+                    .Returns(() => new VirtualSettingSection("config",
+                        new AddItem("globalPackagesFolder", userPackageFolder),
+                        new AddItem("repositoryPath", userPackageFolder)));
 
                 var target = new VsPathContextProvider(
                     settings,
@@ -227,8 +243,10 @@ namespace NuGet.VisualStudio.Implementation.Test.Extensibility
 
                 var settings = Mock.Of<ISettings>();
                 Mock.Get(settings)
-                    .Setup(x => x.GetValue("config", "globalPackagesFolder", true))
-                    .Returns(() => userPackageFolder);
+                    .Setup(x => x.GetSection("config"))
+                    .Returns(() => new VirtualSettingSection("config",
+                        new AddItem("globalPackagesFolder", userPackageFolder),
+                        new AddItem("repositoryPath", userPackageFolder)));
 
                 var target = new VsPathContextProvider(
                     settings,
@@ -261,6 +279,148 @@ namespace NuGet.VisualStudio.Implementation.Test.Extensibility
                 // Assert
                 Assert.Contains(projectUniqueName, exception.Message);
             }
+        }
+
+        [Fact]
+        public void CreateSolutionContext_WithConfiguredUserPackageFolder()
+        {
+            // Arrange
+            using (var testDirectory = TestDirectory.Create())
+            {
+                var currentDirectory = Directory.GetCurrentDirectory();
+
+                var settings = Mock.Of<ISettings>();
+                Mock.Get(settings)
+                    .Setup(x => x.GetSection("config"))
+                    .Returns(() => new VirtualSettingSection("config",
+                        new AddItem("globalPackagesFolder", "solution/packages")));
+                Mock.Get(settings);
+ 
+
+                var solutionManager = new Mock<IVsSolutionManager>();
+                solutionManager
+                    .Setup(x => x.SolutionDirectory)
+                    .Returns(testDirectory.Path);
+
+                var target = new VsPathContextProvider(
+                    settings,
+                    solutionManager.Object,
+                    Mock.Of<ILogger>(),
+                    getLockFileOrNullAsync: null);
+
+                // Act
+                var result = target.TryCreateSolutionContext(out var actual);
+
+                // Assert
+                Assert.True(result);
+                Assert.NotNull(actual);
+                Assert.Equal(Path.Combine(currentDirectory, "solution", "packages"), actual.UserPackageFolder);
+            }
+        }
+
+        [Fact]
+        public void CreateSolutionContext_WithConfiguredFallbackPackageFolders()
+        {
+            // Arrange
+            using (var testDirectory = TestDirectory.Create())
+            {
+                var currentDirectory = Directory.GetCurrentDirectory();
+
+                var settings = new Mock<ISettings>();
+                settings
+                .Setup(x => x.GetSection("fallbackPackageFolders"))
+                .Returns(() => new VirtualSettingSection("fallbackPackageFolders",
+                    new AddItem("a", "solution/packagesA"),
+                    new AddItem("b", "solution/packagesB")
+                ));
+
+                var solutionManager = new Mock<IVsSolutionManager>();
+                solutionManager
+                    .Setup(x => x.SolutionDirectory)
+                    .Returns(testDirectory.Path);
+
+                var target = new VsPathContextProvider(
+                    settings.Object,
+                    solutionManager.Object,
+                    Mock.Of<ILogger>(),
+                    getLockFileOrNullAsync: null);
+
+                // Act
+                var result = target.TryCreateSolutionContext(out var actual);
+
+                // Assert
+                Assert.True(result);
+                Assert.NotNull(actual);
+                Assert.Equal(
+                    new[]
+                    {
+                    Path.Combine(currentDirectory, "solution", "packagesA"),
+                    Path.Combine(currentDirectory, "solution", "packagesB")
+                    },
+                    actual.FallbackPackageFolders.Cast<string>().ToArray());
+            }
+        }
+
+        [Fact]
+        public void CreateSolutionContext_WithPackagesConfig()
+        {
+            // Arrange
+            using (var testDirectory = TestDirectory.Create())
+            {
+                var solutionPackageFolder = Path.Combine(testDirectory.Path, "packagesA");
+                Directory.CreateDirectory(solutionPackageFolder);
+
+                var solutionManager = new Mock<IVsSolutionManager>();
+                solutionManager
+                    .Setup(x => x.SolutionDirectory)
+                    .Returns(testDirectory.Path);
+
+                var settings = Mock.Of<ISettings>();
+                Mock.Get(settings)
+                    .Setup(x => x.GetSection("config"))
+                    .Returns(() => new VirtualSettingSection("config",
+                        new AddItem("repositoryPath", solutionPackageFolder)));
+
+                var target = new VsPathContextProvider(
+                settings,
+                solutionManager.Object,
+                Mock.Of<ILogger>(),
+                getLockFileOrNullAsync: null);
+
+                // Act
+                var result = target.TryCreateSolutionContext(out var actual);
+
+                // Assert
+                Assert.True(result);
+                Assert.NotNull(actual);
+                Assert.Equal(solutionPackageFolder, actual.SolutionPackageFolder);
+            }
+        }
+
+        [Fact]
+        public void CreateSolutionContext_WithSolutionDirectory()
+        {
+            // Arrange
+            using (var testDirectory = TestDirectory.Create())
+            {
+                var solutionPackageFolder = Path.Combine(testDirectory.Path, "packages");
+                Directory.CreateDirectory(solutionPackageFolder);
+
+                var target = new VsPathContextProvider(
+                Mock.Of<ISettings>(),
+                Mock.Of<IVsSolutionManager>(),
+                Mock.Of<ILogger>(),
+                getLockFileOrNullAsync: null);
+
+                // Act
+                var result = target.TryCreateSolutionContext(testDirectory.Path, out var actual);
+
+                // Assert
+                Assert.True(result);
+                Assert.NotNull(actual);
+                Assert.Equal(solutionPackageFolder, actual.SolutionPackageFolder);
+            }
+
         }
 
         [Fact]
@@ -310,6 +470,11 @@ namespace NuGet.VisualStudio.Implementation.Test.Extensibility
             }
 
             public override Task<string> GetAssetsFilePathOrNullAsync()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task AddFileToProjectAsync(string filePath)
             {
                 throw new NotImplementedException();
             }

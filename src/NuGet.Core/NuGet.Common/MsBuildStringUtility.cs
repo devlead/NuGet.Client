@@ -99,5 +99,49 @@ namespace NuGet.Common
                 }
             }
         }
+
+        /// <summary>
+        /// Convert the provided string to MSBuild style.
+        /// </summary>
+        public static string Convert(string value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            return value.Replace(',', ';');
+        }
+
+        /// <summary>
+        /// Return empty list of NuGetLogCode if all lists of NuGetLogCode are not the same. 
+        /// </summary>
+        public static IEnumerable<NuGetLogCode> GetDistinctNuGetLogCodesOrDefault(IEnumerable<IEnumerable<NuGetLogCode>> nugetLogCodeLists)
+        {
+            if (nugetLogCodeLists.Count() > 0)
+            {
+                var result = Enumerable.Empty<NuGetLogCode>();
+                var first = true;
+
+                foreach (var logCodeList in nugetLogCodeLists)
+                {
+                    // If this is first item, assign it to result
+                    if (first)
+                    {
+                        result = logCodeList;
+                        first = false;
+                    }
+                    // Compare the rest items to the first one.
+                    else if (result == null || logCodeList == null || result.Count() != logCodeList.Count() || !result.All(logCodeList.Contains))
+                    {
+                        return Enumerable.Empty<NuGetLogCode>();
+                    }
+                }
+
+                return result ?? Enumerable.Empty<NuGetLogCode>();
+            }
+
+            return Enumerable.Empty<NuGetLogCode>();
+        }
     }
 }

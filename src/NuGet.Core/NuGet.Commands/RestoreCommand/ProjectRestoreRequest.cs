@@ -21,15 +21,15 @@ namespace NuGet.Commands
             PackagesDirectory = request.PackagesDirectory;
             ExistingLockFile = existingLockFile;
             MaxDegreeOfConcurrency = request.MaxDegreeOfConcurrency;
-            PackageSaveMode = request.PackageSaveMode;
             Project = packageSpec;
-            XmlDocFileSaveMode = request.XmlDocFileSaveMode;
             PackageExtractionContext = new PackageExtractionContext(
                 request.PackageSaveMode,
                 request.XmlDocFileSaveMode,
-                log,
-                request.PackageSignatureVerifier,
-                request.SignedPackageVerifierSettings);
+                request.ClientPolicyContext,
+                log)
+            {
+                SignedPackageVerifier = request.SignedPackageVerifier
+            };
         }
 
         public SourceCacheContext CacheContext { get; }
@@ -38,8 +38,6 @@ namespace NuGet.Commands
         public int MaxDegreeOfConcurrency { get; }
         public LockFile ExistingLockFile { get; }
         public PackageSpec Project { get; }
-        public PackageSaveMode PackageSaveMode { get; }
-        public XmlDocFileSaveMode XmlDocFileSaveMode { get; }
         public PackageExtractionContext PackageExtractionContext { get; }
         public Guid ParentId { get; set; }
     }

@@ -17,6 +17,7 @@ using NuGet.Commands;
 using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.PackageManagement;
+using NuGet.PackageManagement.Telemetry;
 using NuGet.PackageManagement.VisualStudio;
 using NuGet.Packaging.Signing;
 using NuGet.ProjectManagement;
@@ -148,7 +149,11 @@ namespace NuGet.SolutionRestoreManager
                 var solutionDirectory = _solutionManager.SolutionDirectory;
                 var isSolutionAvailable = await _solutionManager.IsSolutionAvailableAsync();
 
-                if (solutionDirectory == null)
+                // Get the projects from the SolutionManager
+                // Note that projects that are not supported by NuGet, will not show up in this list
+                projects = await _solutionManager.GetNuGetProjectsAsync();
+
+                if (projects.Any() && solutionDirectory == null)
                 {
                     await _logger.DoAsync((l, _) =>
                     {
@@ -156,12 +161,9 @@ namespace NuGet.SolutionRestoreManager
                         l.ShowError(Resources.SolutionIsNotSaved);
                         l.WriteLine(VerbosityLevel.Minimal, Resources.SolutionIsNotSaved);
                     });
+
                     return;
                 }
-
-                // Get the projects from the SolutionManager
-                // Note that projects that are not supported by NuGet, will not show up in this list
-                projects = await _solutionManager.GetNuGetProjectsAsync();
 
                 // Check if there are any projects that are not INuGetIntegratedProject, that is,
                 // projects with packages.config. OR 
@@ -247,7 +249,7 @@ namespace NuGet.SolutionRestoreManager
             TelemetryActivity.EmitTelemetryEvent(restoreTelemetryEvent);
 
             var sources = _sourceRepositoryProvider.PackageSourceProvider.LoadPackageSources().ToList();
-            var sourceEvent = SourceTelemetry.GetSourceSummaryEvent(_nuGetProjectContext.OperationId, sources);
+            var sourceEvent = SourceTelemetry.GetRestoreSourceSummaryEvent(_nuGetProjectContext.OperationId, sources);
 
             TelemetryActivity.EmitTelemetryEvent(sourceEvent);
         }
@@ -314,15 +316,17 @@ namespace NuGet.SolutionRestoreManager
                             var providerCache = new RestoreCommandProvidersCache();
                             Action<SourceCacheContext> cacheModifier = (cache) => { };
 
+                            var isRestoreOriginalAction = true;
                             var restoreSummaries = await DependencyGraphRestoreUtility.RestoreAsync(
                                 _solutionManager,
+                                dgSpec,
                                 cacheContext,
                                 providerCache,
                                 cacheModifier,
                                 sources,
                                 _nuGetProjectContext.OperationId,
                                 forceRestore,
-                                dgSpec,
+                                isRestoreOriginalAction,
                                 l,
                                 t);
 
@@ -393,7 +397,12 @@ namespace NuGet.SolutionRestoreManager
 
                 var ex = args.Exception as SignatureException;
 
-                ex.Results.SelectMany(p => p.Issues).ToList().ForEach(p => _logger.Log(p.ToLogMessage()));
+                if (!string.IsNullOrEmpty(ex.Message))
+                {
+                    _logger.Log(ex.AsLogMessage());
+                }
+
+                ex.Results.SelectMany(p => p.Issues).ToList().ForEach(p => _logger.Log(p));
 
                 return;
             }
@@ -470,7 +479,7 @@ namespace NuGet.SolutionRestoreManager
                             // Display the restore opt out message if it has not been shown yet
                             await l.WriteHeaderAsync();
 
-                            await RestoreMissingPackagesInSolutionAsync(solutionDirectory, packages, t);
+                            await RestoreMissingPackagesInSolutionAsync(solutionDirectory, packages, l, t);
                         },
                         token);
 
@@ -516,15 +525,17 @@ namespace NuGet.SolutionRestoreManager
         private async Task RestoreMissingPackagesInSolutionAsync(
             string solutionDirectory,
             IEnumerable<PackageRestoreData> packages,
+            ILogger logger,
             CancellationToken token)
         {
             await TaskScheduler.Default;
-
+            
             using (var cacheContext = new SourceCacheContext())
             {
                 var downloadContext = new PackageDownloadContext(cacheContext)
                 {
-                    ParentId = _nuGetProjectContext.OperationId
+                    ParentId = _nuGetProjectContext.OperationId,
+                    ClientPolicyContext = ClientPolicyContext.GetClientPolicy(_settings, logger)
                 };
 
                 await _packageRestoreManager.RestoreMissingPackagesAsync(

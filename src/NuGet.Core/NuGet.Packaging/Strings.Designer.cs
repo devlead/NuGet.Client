@@ -179,6 +179,33 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to There are two certificates with conflicting allowUntrustedRoot attributes in the computed settings. The allowUntrustedRoot attribute is going to be set to false. Certificate: {0}-{1}.
+        /// </summary>
+        internal static string ConflictingAllowUntrustedRoot {
+            get {
+                return ResourceManager.GetString("ConflictingAllowUntrustedRoot", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A list of trusted signers is required but none was found..
+        /// </summary>
+        internal static string DefaultError_EmptyAllowList {
+            get {
+                return ResourceManager.GetString("DefaultError_EmptyAllowList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The package signature certificate fingerprint does not match any certificate fingerprint in the allow list..
+        /// </summary>
+        internal static string DefaultError_NoMatchInAllowList {
+            get {
+                return ResourceManager.GetString("DefaultError_NoMatchInAllowList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Unsupported targetFramework value &apos;{0}&apos;..
         /// </summary>
         internal static string Error_InvalidTargetFramework {
@@ -188,7 +215,16 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to A list of trusted signers is required by the client but none was found..
+        ///   Looks up a localized string similar to Error parsing nupkg metadata file {0} : {1}.
+        /// </summary>
+        internal static string Error_LoadingHashFile {
+            get {
+                return ResourceManager.GetString("Error_LoadingHashFile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to signatureValidationMode is set to require, so packages are allowed only if signed by trusted signers; however, no trusted signers were specified..
         /// </summary>
         internal static string Error_NoClientAllowList {
             get {
@@ -197,7 +233,7 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The package signature certificate fingerprint does not match any certificate fingerprint in client allow list..
+        ///   Looks up a localized string similar to This package is signed but not by a trusted signer..
         /// </summary>
         internal static string Error_NoMatchingClientCertificate {
             get {
@@ -206,7 +242,7 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The package signature certificate fingerprint does not match any certificate fingerprint in repository allow list..
+        ///   Looks up a localized string similar to This package was not repository signed with a certificate listed by this repository..
         /// </summary>
         internal static string Error_NoMatchingRepositoryCertificate {
             get {
@@ -215,7 +251,7 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to A repository announced that their packages should be signed but an empty list of trusted certificates was found..
+        ///   Looks up a localized string similar to This repository indicated that all its packages are repository signed; however, it listed no signing certificates..
         /// </summary>
         internal static string Error_NoRepoAllowList {
             get {
@@ -242,11 +278,29 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to This repository indicated that all its packages are repository signed; however, this package is unsigned..
+        /// </summary>
+        internal static string Error_RepositorySettings_UnsignedPackage {
+            get {
+                return ResourceManager.GetString("Error_RepositorySettings_UnsignedPackage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to A repository primary signature must not have a repository countersignature..
         /// </summary>
         internal static string Error_RepositorySignatureMustNotHaveARepositoryCountersignature {
             get {
                 return ResourceManager.GetString("Error_RepositorySignatureMustNotHaveARepositoryCountersignature", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to signatureValidationMode is set to require, so packages are allowed only if signed by trusted signers; however, this package is unsigned..
+        /// </summary>
+        internal static string Error_RequireMode_UnsignedPackage {
+            get {
+                return ResourceManager.GetString("Error_RequireMode_UnsignedPackage", resourceCulture);
             }
         }
         
@@ -395,11 +449,29 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to An unexpected error occurred while checking package entries..
+        /// </summary>
+        internal static string ErrorUnableCheckPackageEntries {
+            get {
+                return ResourceManager.GetString("ErrorUnableCheckPackageEntries", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Unable to delete temporary file &apos;{0}&apos;. Error: &apos;{1}&apos;..
         /// </summary>
         internal static string ErrorUnableToDeleteFile {
             get {
                 return ResourceManager.GetString("ErrorUnableToDeleteFile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The package &apos;{0}&apos; contains an entry which is unsafe for extraction..
+        /// </summary>
+        internal static string ErrorUnsafePackageEntry {
+            get {
+                return ResourceManager.GetString("ErrorUnsafePackageEntry", resourceCulture);
             }
         }
         
@@ -427,6 +499,15 @@ namespace NuGet.Packaging {
         internal static string ExactlyOneAttributeValueRequired {
             get {
                 return ResourceManager.GetString("ExactlyOneAttributeValueRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Package &apos;{0} {1}&apos; from source &apos;{2}&apos;: {3}.
+        /// </summary>
+        internal static string ExtractionLog_InformationPrefix {
+            get {
+                return ResourceManager.GetString("ExtractionLog_InformationPrefix", resourceCulture);
             }
         }
         
@@ -476,11 +557,29 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Invalid combination of arguments {0} and {1}..
+        /// </summary>
+        internal static string InvalidArgumentCombination {
+            get {
+                return ResourceManager.GetString("InvalidArgumentCombination", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The ASN.1 data is invalid..
         /// </summary>
         internal static string InvalidAsn1 {
             get {
                 return ResourceManager.GetString("InvalidAsn1", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The version string &apos;{0}&apos; is not supported by this toolset. The highest supported version is &apos;{1}&apos;. Either use a lower version or upgrade your toolset..
+        /// </summary>
+        internal static string InvalidLicenseExppressionVersion_VersionTooHigh {
+            get {
+                return ResourceManager.GetString("InvalidLicenseExppressionVersion_VersionTooHigh", resourceCulture);
             }
         }
         
@@ -508,6 +607,15 @@ namespace NuGet.Packaging {
         internal static string InvalidPackageFrameworkFolderName {
             get {
                 return ResourceManager.GetString("InvalidPackageFrameworkFolderName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The file is not a valid nupkg. File path: {0}.
+        /// </summary>
+        internal static string InvalidPackageNupkg {
+            get {
+                return ResourceManager.GetString("InvalidPackageNupkg", resourceCulture);
             }
         }
         
@@ -674,6 +782,186 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Verification settings require a repository countersignature, but the package does not have a repository countersignature..
+        /// </summary>
+        internal static string NoRepositoryCountersignature {
+            get {
+                return ResourceManager.GetString("NoRepositoryCountersignature", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license expression &apos;{0}&apos; cannot be parsed succesfully..
+        /// </summary>
+        internal static string NuGetLicense_InvalidLicenseExpression {
+            get {
+                return ResourceManager.GetString("NuGetLicense_InvalidLicenseExpression", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license version string &apos;{0}&apos;  is invalid..
+        /// </summary>
+        internal static string NuGetLicense_InvalidLicenseExpressionVersion {
+            get {
+                return ResourceManager.GetString("NuGetLicense_InvalidLicenseExpressionVersion", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unrecognized license type &apos;{0}&apos;.
+        /// </summary>
+        internal static string NuGetLicense_InvalidLicenseType {
+            get {
+                return ResourceManager.GetString("NuGetLicense_InvalidLicenseType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license element value is empty. This is likely due to an authoring error. .
+        /// </summary>
+        internal static string NuGetLicense_LicenseElementMissingValue {
+            get {
+                return ResourceManager.GetString("NuGetLicense_LicenseElementMissingValue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license version string &apos;{0}&apos; is higher than the one supported by this toolset &apos;{1}&apos;..
+        /// </summary>
+        internal static string NuGetLicense_LicenseExpressionVersionTooHigh {
+            get {
+                return ResourceManager.GetString("NuGetLicense_LicenseExpressionVersionTooHigh", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The element &apos;license&apos; cannot be empty. .
+        /// </summary>
+        internal static string NuGetLicense_MissingRequiredValue {
+            get {
+                return ResourceManager.GetString("NuGetLicense_MissingRequiredValue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The identifier &apos;{0}&apos; is deprecated..
+        /// </summary>
+        internal static string NuGetLicenseExpression_DeprecatedIdentifier {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_DeprecatedIdentifier", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The identifier &apos;{0}&apos; is a license. It cannot be used as an exception..
+        /// </summary>
+        internal static string NuGetLicenseExpression_ExceptionIdentifierIsLicense {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_ExceptionIdentifierIsLicense", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &apos;UNLICENSED&apos; license identifier cannot be combined with the &apos;+&apos; operator..
+        /// </summary>
+        internal static string NuGetLicenseExpression_IllegalUnlicensedOperator {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_IllegalUnlicensedOperator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license expression &apos;{0}&apos; contains invalid characters..
+        /// </summary>
+        internal static string NuGetLicenseExpression_InvalidCharacters {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_InvalidCharacters", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The identifier &apos;{0}&apos; is not a standard exception..
+        /// </summary>
+        internal static string NuGetLicenseExpression_InvalidExceptionIdentifier {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_InvalidExceptionIdentifier", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license expression is invalid..
+        /// </summary>
+        internal static string NuGetLicenseExpression_InvalidExpression {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_InvalidExpression", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid element &apos;{0}&apos;..
+        /// </summary>
+        internal static string NuGetLicenseExpression_InvalidToken {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_InvalidToken", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The identifier &apos;{0}&apos; is an exception. It cannot be used as a license..
+        /// </summary>
+        internal static string NuGetLicenseExpression_LicenseIdentifierIsException {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_LicenseIdentifierIsException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license identifier &apos;{0}&apos; contains invalid characters..
+        /// </summary>
+        internal static string NuGetLicenseExpression_LicenseInvalidCharacters {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_LicenseInvalidCharacters", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mismatched parentheses in the expression..
+        /// </summary>
+        internal static string NuGetLicenseExpression_MismatchedParentheses {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_MismatchedParentheses", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license identifier(s) &apos;{0}&apos; is(are) not recognized by the current toolset..
+        /// </summary>
+        internal static string NuGetLicenseExpression_NonStandardIdentifier {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_NonStandardIdentifier", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unexpected license identifier &apos;{0}&apos;. The identifier is not allowed in this context..
+        /// </summary>
+        internal static string NuGetLicenseExpression_UnexpectedIdentifier {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_UnexpectedIdentifier", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The owner has marked this package as &apos;UNLICENSED&apos;. This means that there is no license that allows this package to be used outside of the copyright owner..
+        /// </summary>
+        internal static string NuGetLicenseExpression_UnlicensedPackageWarning {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_UnlicensedPackageWarning", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to nuget-package-owners: {0}.
         /// </summary>
         internal static string NuGetPackageOwners {
@@ -751,6 +1039,15 @@ namespace NuGet.Packaging {
         internal static string PackageMinVersionNotSatisfied {
             get {
                 return ResourceManager.GetString("PackageMinVersionNotSatisfied", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to PackageSignatureVerificationLog: PackageIdentity: {0} Source: {1} PackageSignatureValidity: {2}.
+        /// </summary>
+        internal static string PackageSignatureVerificationLog {
+            get {
+                return ResourceManager.GetString("PackageSignatureVerificationLog", resourceCulture);
             }
         }
         
@@ -980,6 +1277,15 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The timestamp&apos;s generalized time is outside the timestamping certificate&apos;s validity period..
+        /// </summary>
+        internal static string SignError_TimestampGeneralizedTimeInvalid {
+            get {
+                return ResourceManager.GetString("SignError_TimestampGeneralizedTimeInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The timestamp integrity check failed..
         /// </summary>
         internal static string SignError_TimestampIntegrityCheckFailed {
@@ -1012,15 +1318,6 @@ namespace NuGet.Packaging {
         internal static string SignError_TimestampSignatureValidationFailed {
             get {
                 return ResourceManager.GetString("SignError_TimestampSignatureValidationFailed", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The timestamp certificate has an unsupported signature algorithm..
-        /// </summary>
-        internal static string SignError_TimestampUnsupportedSignatureAlgorithm {
-            get {
-                return ResourceManager.GetString("SignError_TimestampUnsupportedSignatureAlgorithm", resourceCulture);
             }
         }
         
@@ -1151,6 +1448,15 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The package cannot be signed as it would require the Zip64 format..
+        /// </summary>
+        internal static string SigningWouldRequireZip64 {
+            get {
+                return ResourceManager.GetString("SigningWouldRequireZip64", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The stream must be readable..
         /// </summary>
         internal static string StreamMustBeReadable {
@@ -1187,6 +1493,15 @@ namespace NuGet.Packaging {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The timestamp certificate has an unsupported signature algorithm ({0}). The following algorithms are supported: {1}..
+        /// </summary>
+        internal static string TimestampCertificateUnsupportedSignatureAlgorithm {
+            get {
+                return ResourceManager.GetString("TimestampCertificateUnsupportedSignatureAlgorithm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The timestamper URL &apos;{0}&apos; has an invalid URI scheme. The supported schemes are &apos;{1}&apos; and &apos;{2}&apos;..
         /// </summary>
         internal static string TimestampFailureInvalidHttpScheme {
@@ -1210,6 +1525,15 @@ namespace NuGet.Packaging {
         internal static string TimestampResponseExceptionGeneral {
             get {
                 return ResourceManager.GetString("TimestampResponseExceptionGeneral", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The timestamp response has an unsupported digest algorithm ({0}). The following algorithms are supported: {1}..
+        /// </summary>
+        internal static string TimestampResponseUnsupportedDigestAlgorithm {
+            get {
+                return ResourceManager.GetString("TimestampResponseUnsupportedDigestAlgorithm", resourceCulture);
             }
         }
         
@@ -1255,6 +1579,15 @@ namespace NuGet.Packaging {
         internal static string UnexpectedPackageSignatureVerificationError {
             get {
                 return ResourceManager.GetString("UnexpectedPackageSignatureVerificationError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The enum value &apos;{0}&apos; is unrecognized..
+        /// </summary>
+        internal static string UnrecognizedEnumValue {
+            get {
+                return ResourceManager.GetString("UnrecognizedEnumValue", resourceCulture);
             }
         }
         
@@ -1309,6 +1642,24 @@ namespace NuGet.Packaging {
         internal static string Verify_ErrorNoCertificate {
             get {
                 return ResourceManager.GetString("Verify_ErrorNoCertificate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The revocation function was unable to check revocation because the certificate is not available in the cached certificate revocation list and NUGET_CERT_REVOCATION_MODE environment variable has been set to offline. For more information, visit https://aka.ms/certificateRevocationMode..
+        /// </summary>
+        internal static string VerifyCertTrustOfflineWhileRevocationModeOffline {
+            get {
+                return ResourceManager.GetString("VerifyCertTrustOfflineWhileRevocationModeOffline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The revocation function was unable to check revocation because the revocation server could not be reached. For more information, visit https://aka.ms/certificateRevocationMode..
+        /// </summary>
+        internal static string VerifyCertTrustOfflineWhileRevocationModeOnline {
+            get {
+                return ResourceManager.GetString("VerifyCertTrustOfflineWhileRevocationModeOnline", resourceCulture);
             }
         }
         
@@ -1390,6 +1741,15 @@ namespace NuGet.Packaging {
         internal static string VerifyError_TimestampCertificateFailsPublicKeyLengthRequirement {
             get {
                 return ResourceManager.GetString("VerifyError_TimestampCertificateFailsPublicKeyLengthRequirement", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The {0}&apos;s timestamp&apos;s generalized time is outside the timestamping certificate&apos;s validity period..
+        /// </summary>
+        internal static string VerifyError_TimestampGeneralizedTimeInvalid {
+            get {
+                return ResourceManager.GetString("VerifyError_TimestampGeneralizedTimeInvalid", resourceCulture);
             }
         }
         

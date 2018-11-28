@@ -103,7 +103,7 @@ namespace NuGet.Packaging.Signing
             ValidateTimestampResponse(nonce, request.HashedMessage, timestampToken);
 
             var timestampCms = timestampToken.AsSignedCms();
-            ValidateTimestampCms(request.SigningSpecifications, timestampCms);
+            ValidateTimestampCms(request.SigningSpecifications, timestampCms, timestampToken);
 
             // If the timestamp signed CMS already has a complete chain for the signing certificate,
             // it's ready to be added to the signature to be timestamped.
@@ -142,7 +142,7 @@ namespace NuGet.Packaging.Signing
             }
         }
 
-        private static void ValidateTimestampCms(SigningSpecifications spec, SignedCms timestampCms)
+        private static void ValidateTimestampCms(SigningSpecifications spec, SignedCms timestampCms, Rfc3161TimestampToken timestampToken)
         {
             var signerInfo = timestampCms.SignerInfos[0];
             try
@@ -161,7 +161,16 @@ namespace NuGet.Packaging.Signing
 
             if (!CertificateUtility.IsSignatureAlgorithmSupported(signerInfo.Certificate))
             {
-                throw new TimestampException(NuGetLogCode.NU3022, Strings.SignError_TimestampUnsupportedSignatureAlgorithm);
+                var certificateSignatureAlgorithm = GetNameOrOidString(signerInfo.Certificate.SignatureAlgorithm);
+
+                var supportedSignatureAlgorithms = string.Join(", ", spec.AllowedSignatureAlgorithms);
+
+                var errorMessage = string.Format(CultureInfo.CurrentCulture,
+                    Strings.TimestampCertificateUnsupportedSignatureAlgorithm,
+                    certificateSignatureAlgorithm,
+                    supportedSignatureAlgorithms);
+
+                throw new TimestampException(NuGetLogCode.NU3022, errorMessage);
             }
 
             if (!CertificateUtility.IsCertificatePublicKeyValid(signerInfo.Certificate))
@@ -171,12 +180,26 @@ namespace NuGet.Packaging.Signing
 
             if (!spec.AllowedHashAlgorithmOids.Contains(signerInfo.DigestAlgorithm.Value))
             {
-                throw new TimestampException(NuGetLogCode.NU3024, Strings.SignError_TimestampUnsupportedSignatureAlgorithm);
+                var digestAlgorithm = GetNameOrOidString(signerInfo.DigestAlgorithm);
+
+                var supportedSignatureAlgorithms = string.Join(", ", spec.AllowedHashAlgorithms);
+
+                var errorMessage = string.Format(CultureInfo.CurrentCulture,
+                    Strings.TimestampResponseUnsupportedDigestAlgorithm,
+                    digestAlgorithm,
+                    supportedSignatureAlgorithms);
+
+                throw new TimestampException(NuGetLogCode.NU3024, errorMessage);
             }
 
             if (CertificateUtility.IsCertificateValidityPeriodInTheFuture(signerInfo.Certificate))
             {
                 throw new TimestampException(NuGetLogCode.NU3025, Strings.SignError_TimestampNotYetValid);
+            }
+
+            if (!CertificateUtility.IsDateInsideValidityPeriod(signerInfo.Certificate, timestampToken.TokenInfo.Timestamp))
+            {
+                throw new TimestampException(NuGetLogCode.NU3036, Strings.SignError_TimestampGeneralizedTimeInvalid);
             }
         }
 
@@ -191,6 +214,14 @@ namespace NuGet.Packaging.Signing
             {
                 throw new TimestampException(NuGetLogCode.NU3019, Strings.SignError_TimestampIntegrityCheckFailed);
             }
+        }
+
+        /// <summary>
+        /// Returns the FriendlyName of an Oid. If FriendlyName is null, then the Oid string is returned.
+        /// </summary>
+        private static string GetNameOrOidString(Oid oid)
+        {
+            return oid.FriendlyName?.ToUpper() ?? oid.Value;
         }
 
         private static byte[] GenerateNonce()
@@ -219,6 +250,7 @@ namespace NuGet.Packaging.Signing
 
             return nonce;
         }
+
 #else
 
         /// <summary>

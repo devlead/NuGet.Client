@@ -15,13 +15,28 @@ namespace NuGet.Packaging.Signing
     public enum VerificationTarget
     {
         /// <summary>
-        /// Target Author signatures
+        /// Don't target any signatures.
         /// </summary>
-        Author      = 0x01,
+        None        = 0,
 
         /// <summary>
-        /// Target Repository signatures
+        /// Target unknown primary signatures.
         /// </summary>
-        Repository  = 0x10
+        Unknown     = 1 << 1,
+
+        /// <summary>
+        /// Target author signatures
+        /// </summary>
+        Author      = 1 << 2,
+
+        /// <summary>
+        /// Target repository signatures
+        /// </summary>
+        Repository  = 1 << 3,
+
+        /// <summary>
+        /// Target all available signatures.
+        /// </summary>
+        All = Unknown | Author | Repository
     }
 }

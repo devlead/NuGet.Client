@@ -1,13 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
-
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'README.md'))\build\common.test.props" />
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
   <PropertyGroup>
     <TargetFramework>net46</TargetFramework>
     <TestProject>true</TestProject>
     <UseParallelXunit>true</UseParallelXunit>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\NuGet.Clients\NuGetConsole.Host.PowerShell\NuGetConsole.Host.PowerShell.csproj" />
@@ -19,4 +22,5 @@
   </ItemGroup>
 
   <Import Project="$(BuildCommonDirectory)common.targets" />
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

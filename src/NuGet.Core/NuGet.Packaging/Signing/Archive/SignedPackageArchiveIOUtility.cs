@@ -69,6 +69,9 @@ namespace NuGet.Packaging.Signing
         /// <summary>
         /// Read bytes from a BinaryReader and hash them with a given HashAlgorithm and stop when the provided position
         /// is the current position of the BinaryReader's base stream. It does not hash the byte in the provided position.
+        ///
+        /// TODO: Once we start supporting signing in Net core, then we should move to another ReadAndHashUntilPosition api which takes Sha512HashFunction which is wrapper
+        ///  over HashAlgorithm and works for desktop as well as net core. 
         /// </summary>
         /// <param name="reader">Read bytes from this stream</param>
         /// <param name="hashAlgorithm">HashAlgorithm used to hash contents</param>
@@ -107,6 +110,9 @@ namespace NuGet.Packaging.Signing
 
         /// <summary>
         /// Hashes given byte array with a specified HashAlgorithm
+        ///
+        /// TODO: Once we start supporting signing in Net core, then we should move to another HashBytes api which takes Sha512HashFunction which is wrapper
+        ///  over HashAlgorithm and works for desktop as well as net core. 
         /// </summary>
         /// <param name="hashAlgorithm">HashAlgorithm used to hash contents</param>
         /// <param name="bytes">Content to hash</param>
@@ -128,12 +134,73 @@ namespace NuGet.Packaging.Signing
 #endif
         }
 
+
+        /// <summary>
+        /// Read bytes from a BinaryReader and hash them with a given HashAlgorithm wrapper and stop when the provided position
+        /// is the current position of the BinaryReader's base stream. It does not hash the byte in the provided position.
+        /// </summary>
+        /// <param name="reader">Read bytes from this stream</param>
+        /// <param name="hashFunc">HashAlgorithm wrapper used to hash contents cross platform</param>
+        /// <param name="position">Position to stop copying data</param>
+        internal static void ReadAndHashUntilPosition(BinaryReader reader, Sha512HashFunction hashFunc, long position)
+        {
+            if (reader == null)
+            {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (position > reader.BaseStream.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(position), Strings.SignedPackageArchiveIOExtraRead);
+            }
+
+            if (position < reader.BaseStream.Position)
+            {
+                throw new ArgumentOutOfRangeException(nameof(position), Strings.SignedPackageArchiveIOInvalidRead);
+            }
+
+            while (reader.BaseStream.Position + _bufferSize < position)
+            {
+                var bytes = reader.ReadBytes(_bufferSize);
+                HashBytes(hashFunc, bytes);
+            }
+
+            var remainingBytes = position - reader.BaseStream.Position;
+
+            if (remainingBytes > 0)
+            {
+                var bytes = reader.ReadBytes((int)remainingBytes);
+                HashBytes(hashFunc, bytes);
+            }
+        }
+
+        /// <summary>
+        /// Hashes given byte array with a specified HashAlgorithm wrapper which works cross platform.
+        /// </summary>
+        /// <param name="hashFunc">HashAlgorithm wrapper used to hash contents cross platform</param>
+        /// <param name="bytes">Content to hash</param>
+        internal static void HashBytes(Sha512HashFunction hashFunc, byte[] bytes)
+        {
+            if (hashFunc == null)
+            {
+                throw new ArgumentNullException(nameof(hashFunc));
+            }
+
+            if (bytes == null || bytes.Length == 0)
+            {
+                throw new ArgumentException(Strings.ArgumentCannotBeNullOrEmpty, nameof(bytes));
+            }
+
+            hashFunc.Update(bytes, 0, bytes.Length);
+        }
+
         /// <summary>
         /// Read ZIP's offsets and positions of offsets.
         /// </summary>
         /// <param name="reader">binary reader to zip archive</param>
+        /// <param name="validateSignatureEntry">boolean to skip validate signature entry</param>
         /// <returns>metadata with offsets and positions for entries</returns>
-        public static SignedPackageArchiveMetadata ReadSignedArchiveMetadata(BinaryReader reader)
+        public static SignedPackageArchiveMetadata ReadSignedArchiveMetadata(BinaryReader reader, bool validateSignatureEntry = true)
         {
             if (reader == null)
             {
@@ -206,7 +273,10 @@ namespace NuGet.Packaging.Signing
             metadata.CentralDirectoryHeaders = centralDirectoryRecords;
             metadata.SignatureCentralDirectoryHeaderIndex = packageSignatureFileMetadataIndex;
 
-            AssertSignatureEntryMetadata(reader, metadata);
+            if (validateSignatureEntry)
+            {
+                AssertSignatureEntryMetadata(reader, metadata);
+            }
 
             return metadata;
         }

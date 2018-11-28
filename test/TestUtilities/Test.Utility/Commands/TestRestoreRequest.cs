@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NuGet.Common;
 using NuGet.Configuration;
+using NuGet.Packaging.Signing;
 using NuGet.ProjectModel;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
@@ -32,6 +33,23 @@ namespace NuGet.Commands.Test
             PackageSpec project,
             IEnumerable<PackageSource> sources,
             string packagesDirectory,
+            ClientPolicyContext clientPolicyContext,
+            ILogger log)
+            : this(
+                  project,
+                  sources.Select(source => Repository.Factory.GetCoreV3(source.Source)),
+                  packagesDirectory,
+                  new List<string>(),
+                  new TestSourceCacheContext(),
+                  clientPolicyContext,
+                  log)
+        {
+        }
+
+        public TestRestoreRequest(
+            PackageSpec project,
+            IEnumerable<PackageSource> sources,
+            string packagesDirectory,
             SourceCacheContext cacheContext,
             ILogger log)
             : this(
@@ -41,6 +59,27 @@ namespace NuGet.Commands.Test
                   new List<string>(),
                   cacheContext,
                   log)
+        {
+        }
+
+        public TestRestoreRequest(
+            PackageSpec project,
+            IEnumerable<PackageSource> sources,
+            string packagesDirectory,
+            SourceCacheContext cacheContext,
+            ClientPolicyContext clientPolicyContext,
+            ILogger log) : base(
+                project,
+                RestoreCommandProviders.Create(
+                    packagesDirectory,
+                    fallbackPackageFolderPaths: new List<string>(),
+                    sources: sources.Select(source => Repository.Factory.GetCoreV3(source.Source)),
+                    cacheContext: cacheContext,
+                    packageFileCache: new LocalPackageFileCache(),
+                    log: log),
+                cacheContext,
+                clientPolicyContext,
+                log)
         {
         }
 
@@ -73,6 +112,7 @@ namespace NuGet.Commands.Test
                   packagesDirectory,
                   fallbackPackageFolders,
                   cacheContext,
+                  ClientPolicyContext.GetClientPolicy(NullSettings.Instance, log),
                   log)
         {
         }
@@ -88,6 +128,7 @@ namespace NuGet.Commands.Test
                 packagesDirectory,
                 fallbackPackageFolders,
                 new TestSourceCacheContext(),
+                ClientPolicyContext.GetClientPolicy(NullSettings.Instance, log),
                 log)
         {
         }
@@ -98,6 +139,7 @@ namespace NuGet.Commands.Test
             string packagesDirectory,
             IEnumerable<string> fallbackPackageFolders,
             SourceCacheContext cacheContext,
+            ClientPolicyContext clientPolicyContext,
             ILogger log) : base(
                 project,
                 RestoreCommandProviders.Create(
@@ -108,6 +150,7 @@ namespace NuGet.Commands.Test
                     packageFileCache: new LocalPackageFileCache(),
                     log: log),
                 cacheContext,
+                clientPolicyContext,
                 log)
         {
         }

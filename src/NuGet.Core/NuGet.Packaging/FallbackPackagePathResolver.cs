@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
@@ -121,8 +121,9 @@ namespace NuGet.Packaging
             foreach (var resolver in _pathResolvers)
             {
                 var hashPath = resolver.GetHashPath(packageId, version);
+                var nupkgMetadataFilePath = resolver.GetNupkgMetadataPath(packageId, version);
 
-                if (File.Exists(hashPath))
+                if (File.Exists(hashPath) || File.Exists(nupkgMetadataFilePath))
                 {
                     // If the hash exists we can use this path
                     return new FallbackPackagePathInfo(packageId, version, resolver);

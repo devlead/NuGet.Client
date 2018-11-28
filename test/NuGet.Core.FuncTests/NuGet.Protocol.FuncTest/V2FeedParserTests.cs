@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 using Moq;
 using NuGet.Common;
 using NuGet.Configuration;
+using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.Packaging.PackageExtraction;
 using NuGet.Protocol.Core.Types;
 using NuGet.Test.Utility;
 using NuGet.Versioning;
@@ -89,20 +91,18 @@ namespace NuGet.Protocol.FuncTest
             // Act & Assert
             using (var packagesFolder = TestDirectory.Create())
             using (var cacheContext = new SourceCacheContext())
+            using (var downloadResult = await parser.DownloadFromIdentity(
+                new PackageIdentity("WindowsAzure.Storage", new NuGetVersion("6.2.0")),
+                new PackageDownloadContext(cacheContext),
+                packagesFolder,
+                cacheContext,
+                NullLogger.Instance,
+                CancellationToken.None))
             {
-                using (var downloadResult = await parser.DownloadFromIdentity(
-                    new PackageIdentity("WindowsAzure.Storage", new NuGetVersion("6.2.0")),
-                    new PackageDownloadContext(cacheContext),
-                    packagesFolder,
-                    cacheContext,
-                    NullLogger.Instance,
-                    CancellationToken.None))
-                {
-                    var packageReader = downloadResult.PackageReader;
-                    var files = packageReader.GetFiles();
+                var packageReader = downloadResult.PackageReader;
+                var files = packageReader.GetFiles();
 
-                    Assert.Equal(11, files.Count());
-                }
+                Assert.Equal(13, files.Count());
             }
         }
 
