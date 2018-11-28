@@ -29,6 +29,20 @@ namespace NuGet.Common
         }
 
         /// <summary>
+        /// Returns OrdinalIgnoreCase windows and mac. Ordinal for linux.
+        /// </summary>
+        /// <returns></returns>
+        public static StringComparison GetStringComparisonBasedOnOS()
+        {
+            if (IsFileSystemCaseInsensitive)
+            {
+                return StringComparison.OrdinalIgnoreCase;
+            }
+
+            return StringComparison.Ordinal;
+        }
+
+        /// <summary>
         /// Returns distinct orderd paths based on the file system case sensitivity.
         /// </summary>
         public static IEnumerable<string> GetUniquePathsBasedOnOS(IEnumerable<string> paths)
@@ -452,6 +466,18 @@ namespace NuGet.Common
                 return Directory.Exists(path.ToLowerInvariant()) && Directory.Exists(path.ToUpperInvariant());
             }
             return false;
+        }
+
+        public static string StripLeadingDirectorySeparators(string filename)
+        {
+            filename = GetPathWithForwardSlashes(filename);
+            var currentDirectoryPath = $"./";
+
+            if (filename.StartsWith(currentDirectoryPath))
+            {
+                filename = filename.Substring(currentDirectoryPath.Length);
+            }
+            return filename.TrimStart('/');
         }
     }
 }

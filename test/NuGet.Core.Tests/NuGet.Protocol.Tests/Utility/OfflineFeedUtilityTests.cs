@@ -7,7 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using NuGet.Common;
+using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.Packaging.PackageExtraction;
 using NuGet.Protocol.Core.Types;
 using NuGet.Test.Utility;
 using NuGet.Versioning;
@@ -86,6 +88,12 @@ namespace NuGet.Protocol.Tests
         [Fact]
         public async Task AddPackageToSource_ThrowsIfCancelledAsync()
         {
+            var extractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv3,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                clientPolicyContext: null,
+                logger: NullLogger.Instance);
+
             await Assert.ThrowsAsync<OperationCanceledException>(
                 () => OfflineFeedUtility.AddPackageToSource(
                     new OfflineFeedAddContext(
@@ -95,7 +103,7 @@ namespace NuGet.Protocol.Tests
                         throwIfSourcePackageIsInvalid: false,
                         throwIfPackageExistsAndInvalid: false,
                         throwIfPackageExists: false,
-                        expand: true),
+                        extractionContext: extractionContext),
                     new CancellationToken(canceled: true)));
         }
 
@@ -143,6 +151,12 @@ namespace NuGet.Protocol.Tests
                     packageIdentity.Id,
                     packageIdentity.Version.ToNormalizedString());
 
+                var extractionContext = new PackageExtractionContext(
+                    PackageSaveMode.Defaultv3,
+                    PackageExtractionBehavior.XmlDocFileSaveMode,
+                    clientPolicyContext: null,
+                    logger: NullLogger.Instance);
+
                 var context = new OfflineFeedAddContext(
                     sourcePackageFilePath,
                     destinationDirectoryPath,
@@ -150,7 +164,7 @@ namespace NuGet.Protocol.Tests
                     throwIfSourcePackageIsInvalid: false,
                     throwIfPackageExistsAndInvalid: false,
                     throwIfPackageExists: false,
-                    expand: true);
+                    extractionContext: extractionContext);
 
                 await OfflineFeedUtility.AddPackageToSource(context, CancellationToken.None);
 

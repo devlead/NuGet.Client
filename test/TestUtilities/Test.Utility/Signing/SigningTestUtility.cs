@@ -8,9 +8,13 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 #endif
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
+using System.Threading.Tasks;
 using NuGet.Common;
+using NuGet.Packaging.Core;
 using NuGet.Packaging.Signing;
 using NuGet.Shared;
+using NuGet.Test.Utility;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
@@ -22,11 +26,14 @@ using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
 using Org.BouncyCastle.X509.Extension;
+using Xunit;
 
 namespace Test.Utility.Signing
 {
     public static class SigningTestUtility
     {
+        private static readonly string _signatureLogPrefix = "Package '{0} {1}' from source '{2}':";
+
         /// <summary>
         /// Modification generator that can be passed to TestCertificate.Generate().
         /// The generator will change the certificate EKU to ClientAuth.
@@ -48,7 +55,6 @@ namespace Test.Utility.Signing
         /// </summary>
         public static Action<X509V3CertificateGenerator> CertificateModificationGeneratorForCodeSigningEkuCert = delegate (X509V3CertificateGenerator gen)
         {
-            // CodeSigning EKU
             var usages = new[] { KeyPurposeID.IdKPCodeSigning };
 
             gen.AddExtension(
@@ -63,7 +69,6 @@ namespace Test.Utility.Signing
         /// </summary>
         public static Action<X509V3CertificateGenerator> CertificateModificationGeneratorExpiredCert = delegate (X509V3CertificateGenerator gen)
         {
-            // CodeSigning EKU
             var usages = new[] { KeyPurposeID.IdKPCodeSigning };
 
             gen.AddExtension(
@@ -81,7 +86,6 @@ namespace Test.Utility.Signing
         /// </summary>
         public static Action<X509V3CertificateGenerator> CertificateModificationGeneratorNotYetValidCert = delegate (X509V3CertificateGenerator gen)
         {
-            // CodeSigning EKU
             var usages = new[] { KeyPurposeID.IdKPCodeSigning };
 
             gen.AddExtension(
@@ -98,11 +102,10 @@ namespace Test.Utility.Signing
 
         /// <summary>
         /// Modification generator that can be passed to TestCertificate.Generate().
-        /// The generator will create a certificate that is valid but will expire in a 15 seconds
+        /// The generator will create a certificate that is valid but will expire in 10 seconds.
         /// </summary>
-        public static Action<X509V3CertificateGenerator> CertificateModificationGeneratorExpireIn5Seconds = delegate (X509V3CertificateGenerator gen)
+        public static Action<X509V3CertificateGenerator> CertificateModificationGeneratorExpireIn10Seconds = delegate (X509V3CertificateGenerator gen)
         {
-            // CodeSigning EKU
             var usages = new[] { KeyPurposeID.IdKPCodeSigning };
 
             gen.AddExtension(
@@ -110,8 +113,8 @@ namespace Test.Utility.Signing
                 critical: true,
                 extensionValue: new ExtendedKeyUsage(usages));
 
-            var notBefore = DateTime.UtcNow.Subtract(TimeSpan.FromHours(1));
-            var notAfter = DateTime.UtcNow.Add(TimeSpan.FromSeconds(5));
+            var notBefore = DateTime.UtcNow.AddHours(-1);
+            var notAfter = DateTime.UtcNow.AddSeconds(10);
 
             gen.SetNotBefore(notBefore);
             gen.SetNotAfter(notAfter);
@@ -210,7 +213,7 @@ namespace Test.Utility.Signing
             var keyUsage = KeyUsage.DigitalSignature;
             var issuerDN = chainCertificateRequest?.IssuerDN ?? subjectDN;
             certGen.SetIssuerDN(new X509Name(issuerDN));
-
+            
 #if IS_DESKTOP
             if (chainCertificateRequest != null)
             {
@@ -500,8 +503,8 @@ namespace Test.Utility.Signing
         /// </summary>
         public static X509Certificate2 GetPublicCertWithPrivateKey(X509Certificate2 cert)
         {
-            var pass = new Guid().ToString();
-            return new X509Certificate2(cert.Export(X509ContentType.Pfx, pass), pass, X509KeyStorageFlags.PersistKeySet);
+            var password = new Guid().ToString();
+            return new X509Certificate2(cert.Export(X509ContentType.Pfx, password), password, X509KeyStorageFlags.PersistKeySet|X509KeyStorageFlags.Exportable);
         }
 
         public static TrustedTestCert<TestCertificate> GenerateTrustedTestCertificate()
@@ -534,9 +537,9 @@ namespace Test.Utility.Signing
             return TestCertificate.Generate(actionGenerator).WithTrust(StoreName.Root, StoreLocation.LocalMachine);
         }
 
-        public static TrustedTestCert<TestCertificate> GenerateTrustedTestCertificateThatExpiresIn5Seconds()
+        public static TrustedTestCert<TestCertificate> GenerateTrustedTestCertificateThatExpiresIn10Seconds()
         {
-            var actionGenerator = CertificateModificationGeneratorExpireIn5Seconds;
+            var actionGenerator = CertificateModificationGeneratorExpireIn10Seconds;
 
             // Code Sign EKU needs trust to a root authority
             // Add the cert to Root CA list in LocalMachine as it does not prompt a dialog
@@ -551,55 +554,12 @@ namespace Test.Utility.Signing
                 first.AllowMultipleTimestamps == second.AllowMultipleTimestamps &&
                 first.AllowNoTimestamp == second.AllowNoTimestamp &&
                 first.AllowUnknownRevocation == second.AllowUnknownRevocation &&
+                first.ReportUnknownRevocation == second.ReportUnknownRevocation &&
                 first.AllowUnsigned == second.AllowUnsigned &&
                 first.AllowUntrusted == second.AllowUntrusted &&
-                first.AllowNoRepositoryCertificateList == second.AllowNoRepositoryCertificateList &&
-                first.AllowNoClientCertificateList == second.AllowNoClientCertificateList &&
-                first.AlwaysVerifyCountersignature == second.AlwaysVerifyCountersignature &&
-                AreCertificateHashAllowListEqual(first.ClientCertificateList, second.ClientCertificateList) &&
-                AreCertificateHashAllowListEqual(first.RepositoryCertificateList, second.RepositoryCertificateList);
-        }
-
-        private static bool AreCertificateHashAllowListEqual(IReadOnlyList<VerificationAllowListEntry> first, IReadOnlyList<VerificationAllowListEntry> second)
-        {
-            return (first as IEnumerable<CertificateHashAllowListEntry>).
-                SequenceEqualWithNullCheck((second as IEnumerable<CertificateHashAllowListEntry>), new CertificateHashAllowListEntryComparer());
-        }
-
-        private class CertificateHashAllowListEntryComparer : IEqualityComparer<CertificateHashAllowListEntry>
-        {
-            public bool Equals(CertificateHashAllowListEntry x, CertificateHashAllowListEntry y)
-            {
-                if (ReferenceEquals(x, y))
-                {
-                    return true;
-                }
-
-                if (x == null || y == null)
-                {
-                    return false;
-                }
-
-                return x.Target == y.Target &&
-                    x.FingerprintAlgorithm == y.FingerprintAlgorithm &&
-                    string.Equals(x.Fingerprint, y.Fingerprint, StringComparison.OrdinalIgnoreCase);
-            }
-
-            public int GetHashCode(CertificateHashAllowListEntry obj)
-            {
-                if (obj == null)
-                {
-                    return 0;
-                }
-
-                var combiner = new HashCodeCombiner();
-
-                combiner.AddObject(obj.Target);
-                combiner.AddObject(obj.Fingerprint);
-                combiner.AddObject(obj.FingerprintAlgorithm);
-
-                return combiner.CombinedHash;
-            }
+                first.VerificationTarget == second.VerificationTarget &&
+                first.SignaturePlacement == second.SignaturePlacement &&
+                first.RepositoryCountersignatureVerificationBehavior == second.RepositoryCountersignatureVerificationBehavior;
         }
 
 #if IS_DESKTOP
@@ -623,5 +583,99 @@ namespace Test.Utility.Signing
             return responders;
         }
 #endif
+
+        public static async Task<VerifySignaturesResult> VerifySignatureAsync(SignedPackageArchive signPackage, SignedPackageVerifierSettings settings)
+        {
+            var verificationProviders = new[] { new SignatureTrustAndValidityVerificationProvider() };
+            var verifier = new PackageSignatureVerifier(verificationProviders);
+            var result = await verifier.VerifySignaturesAsync(signPackage, settings, CancellationToken.None);
+            return result;
+        }
+
+        public static byte[] GetResourceBytes(string name)
+        {
+            return ResourceTestUtility.GetResourceBytes($"Test.Utility.compiler.resources.{name}", typeof(SigningTestUtility));
+        }
+
+        public static X509Certificate2 GetCertificate(string name)
+        {
+            var bytes = GetResourceBytes(name);
+
+            return new X509Certificate2(bytes);
+        }
+
+        public static byte[] GetHash(X509Certificate2 certificate, NuGet.Common.HashAlgorithmName hashAlgorithm)
+        {
+            return hashAlgorithm.ComputeHash(certificate.RawData);
+        }
+
+        public static void VerifySerialNumber(X509Certificate2 certificate, NuGet.Packaging.Signing.IssuerSerial issuerSerial)
+        {
+            var serialNumber = certificate.GetSerialNumber();
+
+            // Convert from little endian to big endian.
+            Array.Reverse(serialNumber);
+
+            VerifyByteArrays(serialNumber, issuerSerial.SerialNumber);
+        }
+
+        public static void VerifyByteArrays(byte[] expected, byte[] actual)
+        {
+            var expectedHex = BitConverter.ToString(expected).Replace("-", "");
+            var actualHex = BitConverter.ToString(actual).Replace("-", "");
+
+            Assert.Equal(expectedHex, actualHex);
+        }
+
+        public static void AssertOfflineRevocation(IEnumerable<ILogMessage> issues, LogLevel logLevel)
+        {
+            string offlineRevocation;
+
+            if (RuntimeEnvironmentHelper.IsWindows)
+            {
+                offlineRevocation = "The revocation function was unable to check revocation because the revocation server was offline.";
+            }
+            else
+            {
+                offlineRevocation = "unable to get certificate CRL";
+            }
+
+            Assert.Contains(issues, issue =>
+                issue.Code == NuGetLogCode.NU3018 &&
+                issue.Level == logLevel &&
+                issue.Message == offlineRevocation);
+        }
+
+        public static void AssertRevocationStatusUnknown(IEnumerable<ILogMessage> issues, LogLevel logLevel)
+        {
+            Assert.Contains(issues, issue =>
+                issue.Code == NuGetLogCode.NU3018 &&
+                issue.Level == logLevel &&
+                issue.Message == "The revocation function was unable to check revocation for the certificate.");
+        }
+
+        public static void AssertUntrustedRoot(IEnumerable<ILogMessage> issues, LogLevel logLevel)
+        {
+            string untrustedRoot;
+
+            if (RuntimeEnvironmentHelper.IsWindows)
+            {
+                untrustedRoot = "A certificate chain processed, but terminated in a root certificate which is not trusted by the trust provider.";
+            }
+            else
+            {
+                untrustedRoot = "certificate not trusted";
+            }
+
+            Assert.Contains(issues, issue =>
+                issue.Code == NuGetLogCode.NU3018 &&
+                issue.Level == logLevel &&
+                issue.Message == untrustedRoot);
+        }
+
+        public static string AddSignatureLogPrefix(string log, PackageIdentity package, string source)
+        {
+            return $"{string.Format(_signatureLogPrefix, package.Id, package.Version, source)} {log}";
+        }
     }
 }

@@ -34,6 +34,7 @@ namespace Dotnet.Integration.Test
             _processEnvVars.Add("MSBuildSDKsPath", MsBuildSdksPath);
             _processEnvVars.Add("UseSharedCompilation", "false");
             _processEnvVars.Add("DOTNET_MULTILEVEL_LOOKUP", "0");
+            _processEnvVars.Add("MSBUILDDISABLENODEREUSE ", "true");
             // We do this here so that dotnet new will extract all the packages on the first run on the machine.
             InitDotnetNewToExtractPackages();
         }
@@ -146,12 +147,8 @@ namespace Dotnet.Integration.Test
         /// <summary>
         /// dotnet.exe args
         /// </summary>
-        internal CommandRunnerResult RunDotnet(string workingDirectory, string args)
+        internal CommandRunnerResult RunDotnet(string workingDirectory, string args, bool ignoreExitCode=false)
         {
-            var envVar = new Dictionary<string, string>
-            {
-                { "MSBuildSDKsPath", MsBuildSdksPath }
-            };
 
             var result = CommandRunner.Run(TestDotnetCli,
                 workingDirectory,
@@ -159,18 +156,26 @@ namespace Dotnet.Integration.Test
                 waitForExit: true,
                 environmentVariables: _processEnvVars);
 
+            if (!ignoreExitCode)
+            {
+                Assert.True(result.ExitCode == 0, $"dotnet.exe {args} command failed with following log information :\n {result.AllOutput}");
+            }
+
             return result;
         }
 
-        internal CommandRunnerResult PackProject(string workingDirectory, string projectName, string args, string nuspecOutputPath = "obj")
+        internal CommandRunnerResult PackProject(string workingDirectory, string projectName, string args, string nuspecOutputPath = "obj", bool validateSuccess = true)
         {
             var result = CommandRunner.Run(TestDotnetCli,
                 workingDirectory,
                 $"pack {projectName}.csproj {args} /p:NuspecOutputPath={nuspecOutputPath}",
                 waitForExit: true,
                 environmentVariables: _processEnvVars);
-            Assert.True(result.Item1 == 0, $"Pack failed with following log information :\n {result.AllOutput}");
-            Assert.True(result.Item3 == "", $"Pack failed with following message in error stream :\n {result.AllOutput}");
+            if (validateSuccess)
+            {
+                Assert.True(result.Item1 == 0, $"Pack failed with following log information :\n {result.AllOutput}");
+                Assert.True(result.Item3 == "", $"Pack failed with following message in error stream :\n {result.AllOutput}");
+            }
             return result;
         }
 
@@ -219,7 +224,7 @@ namespace Dotnet.Integration.Test
             var nupkgsDirectory = DotnetCliUtil.GetNupkgDirectoryInRepo();
             var pathToPackNupkg = FindMostRecentNupkg(nupkgsDirectory, "NuGet.Build.Tasks.Pack");
 
-            var nupkgsToCopy = new List<string> { "NuGet.Build.Tasks", "NuGet.Versioning", "NuGet.Protocol", "NuGet.ProjectModel", "NuGet.Packaging", "NuGet.Packaging.Core", "NuGet.LibraryModel", "NuGet.Frameworks", "NuGet.DependencyResolver.Core", "NuGet.Configuration", "NuGet.Common", "NuGet.Commands", "NuGet.CommandLine.XPlat" };
+            var nupkgsToCopy = new List<string> { "NuGet.Build.Tasks", "NuGet.Versioning", "NuGet.Protocol", "NuGet.ProjectModel", "NuGet.Packaging", "NuGet.Packaging.Core", "NuGet.LibraryModel", "NuGet.Frameworks", "NuGet.DependencyResolver.Core", "NuGet.Configuration", "NuGet.Common", "NuGet.Commands", "NuGet.CommandLine.XPlat", "NuGet.Credentials" };
 
             var pathToSdkInCli = Path.Combine(
                     Directory.GetDirectories(Path.Combine(cliDirectory, "sdk"))
@@ -329,6 +334,7 @@ namespace Dotnet.Integration.Test
 
         public void Dispose()
         {
+            RunDotnet(Path.GetDirectoryName(TestDotnetCli), "build-server shutdown");
             KillDotnetExe(TestDotnetCli);
             DeleteDirectory(Path.GetDirectoryName(TestDotnetCli));
         }

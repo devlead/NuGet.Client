@@ -146,12 +146,54 @@ namespace NuGet.PackageManagement.VisualStudio
                 LibraryRange = new LibraryRange(
                     name: packageId,
                     versionRange: range,
-                    typeConstraint: LibraryDependencyTarget.Package)
+                    typeConstraint: LibraryDependencyTarget.Package),
+                SuppressParent = __.SuppressParent,
+                IncludeType = __.IncludeType
             };
 
             await ProjectServices.References.AddOrUpdatePackageReferenceAsync(dependency, token);
 
             return true;
+        }
+
+        public override async Task AddFileToProjectAsync(string filePath)
+        {
+            await _threadingService.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            EnvDTEProjectUtility.EnsureCheckedOutIfExists(_vsProjectAdapter.Project, _vsProjectAdapter.ProjectDirectory, filePath);
+
+            var isFileExistsInProject = await EnvDTEProjectUtility.ContainsFile(_vsProjectAdapter.Project, filePath);
+
+            if (!isFileExistsInProject)
+            {
+                await AddProjectItemAsync(filePath);
+            }
+        }
+
+        private async Task AddProjectItemAsync(string filePath)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var folderPath = Path.GetDirectoryName(filePath);
+            var fullPath = filePath;
+
+            if (filePath.Contains(_vsProjectAdapter.ProjectDirectory))
+            {
+                // folderPath should always be relative to ProjectDirectory so if filePath already contains
+                // ProjectDirectory then get a relative path and construct folderPath to get the appropriate
+                // ProjectItems from dte where you have to add this file.
+                var relativeLockFilePath = FileSystemUtility.GetRelativePath(_vsProjectAdapter.ProjectDirectory, filePath);
+                folderPath = Path.GetDirectoryName(relativeLockFilePath);
+            }
+            else
+            {
+                // get the fullPath wrt ProjectDirectory
+                fullPath = FileSystemUtility.GetFullPath(_vsProjectAdapter.ProjectDirectory, filePath);
+            }
+
+            var container = await EnvDTEProjectUtility.GetProjectItemsAsync(_vsProjectAdapter.Project, folderPath, createIfNotExists:true);
+
+            container.AddFromFileCopy(fullPath);
         }
 
         public override async Task<bool> UninstallPackageAsync(
@@ -249,7 +291,7 @@ namespace NuGet.PackageManagement.VisualStudio
 
         private IList<string> GetConfigFilePaths(ISettings settings)
         {
-            return SettingsUtility.GetConfigFilePaths(settings).ToList();
+            return settings.GetConfigFilePaths();
         }
 
         private static PackageReference[] GetPackageReferences(PackageSpec packageSpec)
@@ -361,7 +403,11 @@ namespace NuGet.PackageManagement.VisualStudio
                     ProjectWideWarningProperties = WarningProperties.GetWarningProperties(
                         treatWarningsAsErrors: _vsProjectAdapter.TreatWarningsAsErrors, 
                         noWarn: _vsProjectAdapter.NoWarn,
-                        warningsAsErrors: _vsProjectAdapter.WarningsAsErrors)
+                        warningsAsErrors: _vsProjectAdapter.WarningsAsErrors),
+                    RestoreLockProperties = new RestoreLockProperties(
+                        await _vsProjectAdapter.GetRestorePackagesWithLockFileAsync(),
+                        await _vsProjectAdapter.GetNuGetLockFilePathAsync(),
+                        await _vsProjectAdapter.IsRestoreLockedAsync())
                 }
             };
         }

@@ -13,9 +13,7 @@ using NuGet.DependencyResolver;
 using NuGet.LibraryModel;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
-using NuGet.Packaging.Signing;
 using NuGet.ProjectModel;
-using NuGet.Protocol;
 using NuGet.Repositories;
 
 namespace NuGet.Commands
@@ -75,7 +73,7 @@ namespace NuGet.Commands
                 foreach (var remoteMatch in packages)
                 {
                     var identity = GetPackageIdentity(remoteMatch);
-                    var hashPath = _pathResolver.GetHashPath(identity.Id, identity.Version);
+                    var hashPath = _pathResolver.GetNupkgMetadataPath(identity.Id, identity.Version);
 
                     // No need to re-install the same package identity more than once or if it is
                     // already installed.
@@ -143,14 +141,14 @@ namespace NuGet.Commands
 
         private PackageExtractionContext GetPathContext()
         {
-            var signedPackageVerifier = new PackageSignatureVerifier(SignatureVerificationProviderFactory.GetSignatureVerificationProviders());
-
             return new PackageExtractionContext(
                 _request.PackageSaveMode,
                 _request.XmlDocFileSaveMode,
-                _request.Log,
-                signedPackageVerifier,
-                SignedPackageVerifierSettings.GetDefault());
+                _request.ClientPolicyContext,
+                _request.Log)
+            {
+                SignedPackageVerifier = _request.SignedPackageVerifier
+            };
         }
 
         private static PackageIdentity GetPackageIdentity(RemoteMatch remoteMatch)

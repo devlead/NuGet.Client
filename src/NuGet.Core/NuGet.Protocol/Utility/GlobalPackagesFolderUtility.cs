@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -34,43 +33,52 @@ namespace NuGet.Protocol
 
             var defaultPackagePathResolver = new VersionFolderPathResolver(globalPackagesFolder);
 
+            var nupkgMetadataPath = defaultPackagePathResolver.GetNupkgMetadataPath(packageIdentity.Id, packageIdentity.Version);
             var hashPath = defaultPackagePathResolver.GetHashPath(packageIdentity.Id, packageIdentity.Version);
+            var installPath = defaultPackagePathResolver.GetInstallPath(
+                    packageIdentity.Id,
+                    packageIdentity.Version);
+            var nupkgPath = defaultPackagePathResolver.GetPackageFilePath(
+                packageIdentity.Id,
+                packageIdentity.Version);
 
-            if (File.Exists(hashPath))
+            if (File.Exists(nupkgMetadataPath))
             {
-                var installPath = defaultPackagePathResolver.GetInstallPath(
-                    packageIdentity.Id,
-                    packageIdentity.Version);
-
-                var nupkgPath = defaultPackagePathResolver.GetPackageFilePath(
-                    packageIdentity.Id,
-                    packageIdentity.Version);
-
-                Stream stream = null;
-                PackageReaderBase packageReader = null;
-                try
-                {
-                    stream = File.Open(nupkgPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    packageReader = new PackageFolderReader(installPath);
-                    return new DownloadResourceResult(stream, packageReader, source: null) { SignatureVerified = true };
-                }
-                catch
-                {
-                    if (stream != null)
-                    {
-                        stream.Dispose();
-                    }
-
-                    if (packageReader != null)
-                    {
-                        packageReader.Dispose();
-                    }
-
-                    throw;
-                }
+                return CreateDownloadResourceResult(nupkgPath, installPath);
+            }
+            else if (File.Exists(hashPath))
+            {
+                LocalFolderUtility.GenerateNupkgMetadataFile(nupkgPath, installPath, hashPath, nupkgMetadataPath);
+                return CreateDownloadResourceResult(nupkgPath, installPath);
             }
 
             return null;
+        }
+
+        private static DownloadResourceResult CreateDownloadResourceResult(string nupkgPath, string installPath)
+        {
+            Stream stream = null;
+            PackageReaderBase packageReader = null;
+            try
+            {
+                stream = File.Open(nupkgPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                packageReader = new PackageFolderReader(installPath);
+                return new DownloadResourceResult(stream, packageReader, source: null) { SignatureVerified = true };
+            }
+            catch
+            {
+                if (stream != null)
+                {
+                    stream.Dispose();
+                }
+
+                if (packageReader != null)
+                {
+                    packageReader.Dispose();
+                }
+
+                throw;
+            }
         }
 
         public static async Task<DownloadResourceResult> AddPackageAsync(
@@ -79,6 +87,7 @@ namespace NuGet.Protocol
             Stream packageStream,
             string globalPackagesFolder,
             Guid parentId,
+            ClientPolicyContext clientPolicyContext,
             ILogger logger,
             CancellationToken token)
         {
@@ -97,18 +106,15 @@ namespace NuGet.Protocol
                 throw new ArgumentNullException(nameof(globalPackagesFolder));
             }
 
-            var signedPackageVerifier = new PackageSignatureVerifier(SignatureVerificationProviderFactory.GetSignatureVerificationProviders());
-
             // The following call adds it to the global packages folder.
             // Addition is performed using ConcurrentUtils, such that,
             // multiple processes may add at the same time
 
-            var packageExtractionContext = new PackageExtractionContext(
-                PackageSaveMode.Defaultv3,
-                PackageExtractionBehavior.XmlDocFileSaveMode,
-                logger,
-                signedPackageVerifier,
-                SignedPackageVerifierSettings.GetDefault());
+            var extractionContext = new PackageExtractionContext(
+               PackageSaveMode.Defaultv3,
+               PackageExtractionBehavior.XmlDocFileSaveMode,
+               clientPolicyContext,
+               logger);
 
             var versionFolderPathResolver = new VersionFolderPathResolver(globalPackagesFolder);
 
@@ -117,7 +123,7 @@ namespace NuGet.Protocol
                 packageIdentity,
                 stream => packageStream.CopyToAsync(stream, BufferSize, token),
                 versionFolderPathResolver,
-                packageExtractionContext,
+                extractionContext,
                 token,
                 parentId);
 

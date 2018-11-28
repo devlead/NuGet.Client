@@ -9,6 +9,7 @@ using NuGet.Common;
 using NuGet.DependencyResolver;
 using NuGet.Frameworks;
 using NuGet.LibraryModel;
+using NuGet.Packaging.Signing;
 using NuGet.ProjectModel;
 
 namespace NuGet.Commands
@@ -72,6 +73,21 @@ namespace NuGet.Commands
                 StartColumnNumber = logMessage.StartColumnNumber,
                 EndLineNumber = logMessage.EndLineNumber,
                 EndColumnNumber = logMessage.EndColumnNumber
+            };
+        }
+
+        /// <summary>
+        /// Converts an LogMessage into a RestoreLogMessage.
+        /// This is needed when an LogMessage needs to be logged and loggers do not have visibility to LogMessage.
+        /// </summary>
+        /// <param name="logMessage">LogMessage to be converted.</param>
+        /// <returns>RestoreLogMessage equivalent to the LogMessage.</returns>
+        public static RestoreLogMessage AsRestoreLogMessage(this LogMessage logMessage)
+        {
+            return new RestoreLogMessage(logMessage.Level, logMessage.Code, logMessage.Message)
+            {
+                ProjectPath = logMessage.ProjectPath,
+                WarningLevel = logMessage.WarningLevel
             };
         }
     }

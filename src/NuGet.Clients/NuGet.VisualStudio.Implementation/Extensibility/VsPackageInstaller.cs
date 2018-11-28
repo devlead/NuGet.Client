@@ -15,7 +15,10 @@ using Microsoft.VisualStudio.Threading;
 using NuGet.Common;
 using NuGet.PackageManagement;
 using NuGet.PackageManagement.VisualStudio;
+using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.Packaging.PackageExtraction;
+using NuGet.Packaging.Signing;
 using NuGet.ProjectManagement;
 using NuGet.Protocol.Core.Types;
 using NuGet.Resolver;
@@ -59,9 +62,20 @@ namespace NuGet.VisualStudio
             _deleteOnRestartManager = deleteOnRestartManager;
             _isCPSJTFLoaded = false;
 
-            _projectContext = new Lazy<INuGetProjectContext>(() => new VSAPIProjectContext());
+            _projectContext = new Lazy<INuGetProjectContext>(() => {
+                var projectContext = new VSAPIProjectContext();
 
-            PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory.Context);
+                var logger = new LoggerAdapter(projectContext);
+                projectContext.PackageExtractionContext = new PackageExtractionContext(
+                    PackageSaveMode.Defaultv2,
+                    PackageExtractionBehavior.XmlDocFileSaveMode,
+                    ClientPolicyContext.GetClientPolicy(_settings, logger),
+                    logger);
+
+                return projectContext;
+            });
+
+            PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory);
         }
 
         private void RunJTFWithCorrectContext(Project project, Func<Task> asyncTask)
@@ -79,7 +93,7 @@ namespace NuGet.VisualStudio
                         // Lazy load the CPS enabled JoinableTaskFactory for the UI.
                         NuGetUIThreadHelper.SetJoinableTaskFactoryFromService(ProjectServiceAccessor.Value as IProjectServiceAccessor);
 
-                        PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory.Context);
+                        PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory);
                         _isCPSJTFLoaded = true;
                     }
                 });
@@ -163,6 +177,13 @@ namespace NuGet.VisualStudio
             };
 
             var projectContext = new VSAPIProjectContext();
+            var logger = new LoggerAdapter(projectContext);
+
+            projectContext.PackageExtractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv2,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                ClientPolicyContext.GetClientPolicy(_settings, logger),
+                logger);
 
             return InstallInternalAsync(project, toInstall, GetSources(sources), projectContext, includePrerelease, ignoreDependencies, CancellationToken.None);
         }
@@ -217,6 +238,13 @@ namespace NuGet.VisualStudio
                     var disableBindingRedirects = skipAssemblyReferences;
 
                     var projectContext = new VSAPIProjectContext(skipAssemblyReferences, disableBindingRedirects);
+                    var logger = new LoggerAdapter(projectContext);
+
+                    projectContext.PackageExtractionContext = new PackageExtractionContext(
+                        PackageSaveMode.Defaultv2,
+                        PackageExtractionBehavior.XmlDocFileSaveMode,
+                        ClientPolicyContext.GetClientPolicy(_settings, logger),
+                        logger);
 
                     await InstallInternalAsync(
                         project,
@@ -268,6 +296,12 @@ namespace NuGet.VisualStudio
                     var disableBindingRedirects = skipAssemblyReferences;
 
                     var projectContext = new VSAPIProjectContext(skipAssemblyReferences, disableBindingRedirects);
+                    var logger = new LoggerAdapter(projectContext);
+                    projectContext.PackageExtractionContext = new PackageExtractionContext(
+                        PackageSaveMode.Defaultv2,
+                        PackageExtractionBehavior.XmlDocFileSaveMode,
+                        ClientPolicyContext.GetClientPolicy(_settings, logger),
+                        logger);
 
                     return InstallInternalAsync(
                         project,
@@ -438,6 +472,13 @@ namespace NuGet.VisualStudio
             var disableBindingRedirects = skipAssemblyReferences;
 
             var projectContext = new VSAPIProjectContext(skipAssemblyReferences, disableBindingRedirects);
+            var logger = new LoggerAdapter(projectContext);
+
+            projectContext.PackageExtractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv2,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                ClientPolicyContext.GetClientPolicy(_settings, logger),
+                logger);
 
             await InstallInternalAsync(
                 project,

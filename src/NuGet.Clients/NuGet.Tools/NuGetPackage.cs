@@ -35,7 +35,7 @@ namespace NuGetVSExtension
     /// <summary>
     /// This is the class that implements the package exposed by this assembly.
     /// </summary>
-    [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = false)]
+    [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [InstalledProductRegistration("#110", "#112", ProductVersion, IconResourceID = 400)]
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [ProvideToolWindow(typeof(PowerConsoleToolWindow),
@@ -46,10 +46,20 @@ namespace NuGetVSExtension
     [ProvideOptionPage(typeof(GeneralOptionPage), "NuGet Package Manager", "General", 113, 115, true)]
     [ProvideSearchProvider(typeof(NuGetSearchProvider), "NuGet Search")]
     [ProvideBindingPath] // Definition dll needs to be on VS binding path
-    [ProvideAutoLoad(GuidList.guidUpgradeableProjectLoadedString)]
-    [ProvideAutoLoad(GuidList.guidAutoLoadNuGetString)]
-    [ProvideAutoLoad(VSConstants.UICONTEXT.ProjectRetargeting_string)]
-    [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionOrProjectUpgrading_string)]
+    // UI Context rule for a project that could be upgraded to PackageReference from packages.config based project.
+    // Only exception is this UI context doesn't get enabled for right-click on Reference since there is no extension point on references
+    // to know if there is packages.config file in this project hierarchy. So first-time right click on reference in a new VS instance
+    // will not show Migrator option.
+    [ProvideUIContextRule(GuidList.guidUpgradeableProjectLoadedString,
+        "UpgradeableProjectLoaded",
+        "SolutionExistsAndFullyLoaded & PackagesConfigBasedProjectLoaded",
+        new[] { "SolutionExistsAndFullyLoaded", "PackagesConfigBasedProjectLoaded" },
+        new[] { VSConstants.UICONTEXT.SolutionExistsAndFullyLoaded_string,
+            "HierSingleSelectionName:packages.config"})]
+    [ProvideAutoLoad(GuidList.guidUpgradeableProjectLoadedString, PackageAutoLoadFlags.BackgroundLoad)]
+    [ProvideAutoLoad(GuidList.guidAutoLoadNuGetString, PackageAutoLoadFlags.BackgroundLoad)]
+    [ProvideAutoLoad(VSConstants.UICONTEXT.ProjectRetargeting_string, PackageAutoLoadFlags.BackgroundLoad)]
+    [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionOrProjectUpgrading_string, PackageAutoLoadFlags.BackgroundLoad)]
     [FontAndColorsRegistration(
         "Package Manager Console",
         NuGetConsole.GuidList.GuidPackageManagerConsoleFontAndColorCategoryString,
@@ -224,6 +234,10 @@ namespace NuGetVSExtension
             _mcs = await GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService;
             if (null != _mcs)
             {
+                // Switch to Main Thread before calling AddCommand which calls GetService() which should
+                // always be called on UI thread.
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                 // menu command for upgrading packages.config files to PackageReference - References context menu
                 var upgradeNuGetProjectCommandID = new CommandID(GuidList.guidNuGetDialogCmdSet, PkgCmdIDList.cmdidUpgradeNuGetProject);
                 var upgradeNuGetProjectCommand = new OleMenuCommand(ExecuteUpgradeNuGetProjectCommandAsync, null,
@@ -518,13 +532,20 @@ namespace NuGetVSExtension
         private async void ExecuteUpgradeNuGetProjectCommandAsync(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            await ThreadHelper.JoinableTaskFactory.RunAsync(ExecuteUpgradeNuGetProjectCommandImplAsync);
-        }
 
-        private async Task ExecuteUpgradeNuGetProjectCommandImplAsync()
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            if (ShouldMEFBeInitialized())
+            {
+                await InitializeMEFAsync();
+            }
+
             var project = EnvDTEProjectInfoUtility.GetActiveProject(VsMonitorSelection);
+
+            if (!await NuGetProjectUpgradeUtility.IsNuGetProjectUpgradeableAsync(null, project))
+            {
+                MessageHelper.ShowWarningMessage(Resources.ProjectMigrateErrorMessage, Resources.ErrorDialogBoxTitle);
+                return;
+            }
+
             var uniqueName = await EnvDTEProjectInfoUtility.GetCustomUniqueNameAsync(project);
             // Close NuGet Package Manager if it is open for this project
             var windowFrame = FindExistingWindowFrame(project);
@@ -692,7 +713,7 @@ namespace NuGetVSExtension
             var guidEditorType = GuidList.guidNuGetEditorType;
             var guidCommandUI = Guid.Empty;
             var caption = Resx.Label_SolutionNuGetWindowCaption;
-            var documentName = _dte.Solution.FullName;
+            var documentName = await SolutionManager.Value.GetSolutionFilePathAsync();
 
             var ppunkDocView = IntPtr.Zero;
             var ppunkDocData = IntPtr.Zero;
@@ -802,11 +823,14 @@ namespace NuGetVSExtension
                 NuGetUIThreadHelper.JoinableTaskFactory.Run(InitializeMEFAsync);
             }
 
+            var isConsoleBusy = false;
             if (ConsoleStatus != null)
             {
-                var command = (OleMenuCommand)sender;
-                command.Enabled = !ConsoleStatus.Value.IsBusy && !_powerConsoleCommandExecuting;
+                isConsoleBusy = ConsoleStatus.Value.IsBusy;
             }
+
+            var command = (OleMenuCommand)sender;
+            command.Enabled = !isConsoleBusy && !_powerConsoleCommandExecuting;
         }
 
         private void BeforeQueryStatusForUpgradeNuGetProject(object sender, EventArgs args)
@@ -822,9 +846,14 @@ namespace NuGetVSExtension
 
                 var command = (OleMenuCommand)sender;
                 
+                var isConsoleBusy = false;
+                if (ConsoleStatus != null)
+                {
+                    isConsoleBusy = ConsoleStatus.Value.IsBusy;
+                }
 
-                command.Visible = IsSolutionOpen && await IsProjectUpgradeableAsync();
-                command.Enabled = !ConsoleStatus.Value.IsBusy && IsSolutionExistsAndNotDebuggingAndNotBuilding() && HasActiveLoadedSupportedProject;
+                command.Visible = IsSolutionOpen && await IsPackagesConfigBasedProjectAsync();
+                command.Enabled = !isConsoleBusy && IsSolutionExistsAndNotDebuggingAndNotBuilding() && HasActiveLoadedSupportedProject;
             });
         }
 
@@ -841,19 +870,44 @@ namespace NuGetVSExtension
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 var command = (OleMenuCommand)sender;
-                
-                command.Visible = IsSolutionOpen && await IsProjectUpgradeableAsync() && IsPackagesConfigSelected();
-                command.Enabled = !ConsoleStatus.Value.IsBusy && IsSolutionExistsAndNotDebuggingAndNotBuilding() && HasActiveLoadedSupportedProject;
-            });
 
+                var isConsoleBusy = false;
+                if (ConsoleStatus != null)
+                {
+                    isConsoleBusy = ConsoleStatus.Value.IsBusy;
+                }
+
+                command.Visible = IsSolutionOpen && IsPackagesConfigSelected();
+                command.Enabled = !isConsoleBusy && IsSolutionExistsAndNotDebuggingAndNotBuilding() && HasActiveLoadedSupportedProject;
+            });
         }
+
+        private async Task<bool> IsPackagesConfigBasedProjectAsync()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var dteProject = EnvDTEProjectInfoUtility.GetActiveProject(VsMonitorSelection);
+
+            var uniqueName = EnvDTEProjectInfoUtility.GetUniqueName(dteProject);
+            var nuGetProject = await SolutionManager.Value.GetNuGetProjectAsync(uniqueName);
+
+            if (nuGetProject == null)
+            {
+                return false;
+            }
+
+            var msBuildNuGetProject = nuGetProject as MSBuildNuGetProject;
+
+            if (msBuildNuGetProject == null || !msBuildNuGetProject.PackagesConfigNuGetProject.PackagesConfigExists())
+            {
+                return false;
+            }
+
+            return true;
+        }
+
 
         private bool IsSolutionOpen => _dte?.Solution != null && _dte.Solution.IsOpen;
-
-        private async  Task<bool> IsProjectUpgradeableAsync()
-        {
-            return await NuGetProjectUpgradeUtility.IsNuGetProjectUpgradeableAsync(null, EnvDTEProjectInfoUtility.GetActiveProject(VsMonitorSelection));
-        }
 
         private bool IsPackagesConfigSelected()
         {
@@ -880,13 +934,18 @@ namespace NuGetVSExtension
                 // So, make it invisible when no solution is open
                 command.Visible = IsSolutionOpen;
 
+                var isConsoleBusy = false;
+                if (ConsoleStatus != null)
+                {
+                    isConsoleBusy = ConsoleStatus.Value.IsBusy;
+                }
                 // Enable the 'Manage NuGet Packages' dialog menu
                 // - if the solution exists and not debugging and not building AND
                 // - if the console is NOT busy executing a command, AND
                 // - if the active project is loaded and supported
                 command.Enabled =
                     IsSolutionExistsAndNotDebuggingAndNotBuilding() &&
-                    !ConsoleStatus.Value.IsBusy &&
+                    !isConsoleBusy &&
                     HasActiveLoadedSupportedProject;
             });
         }
@@ -904,13 +963,18 @@ namespace NuGetVSExtension
 
                 var command = (OleMenuCommand)sender;
 
+                var isConsoleBusy = false;
+                if (ConsoleStatus != null)
+                {
+                    isConsoleBusy = ConsoleStatus.Value.IsBusy;
+                }
                 // Enable the 'Manage NuGet Packages For Solution' dialog menu
                 // - if the console is NOT busy executing a command, AND
                 // - if the solution exists and not debugging and not building AND
                 // - if there are NuGetProjects. This means there are loaded, supported projects.
                 command.Enabled =
                     IsSolutionExistsAndNotDebuggingAndNotBuilding() &&
-                    !ConsoleStatus.Value.IsBusy &&
+                    !isConsoleBusy &&
                     await SolutionManager.Value.DoesNuGetSupportsAnyProjectAsync();
             });
         }
@@ -1027,7 +1091,12 @@ namespace NuGetVSExtension
         // know which options keys it will use in the suo file.
         public int SaveUserOptions(IVsSolutionPersistence pPersistence)
         {
-            return SolutionUserOptions.Value.SaveUserOptions(pPersistence);
+            if (SolutionUserOptions != null && SolutionUserOptions.IsValueCreated)
+            {
+                return SolutionUserOptions.Value.SaveUserOptions(pPersistence);
+            }
+
+            return VSConstants.S_OK;
         }
 
         public int WriteUserOptions(IStream _, string __)

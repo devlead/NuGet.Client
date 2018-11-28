@@ -287,6 +287,33 @@ namespace NuGet.Protocol {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The file &apos;{0}&apos; does not exist in the package..
+        /// </summary>
+        internal static string LoadFileFromNupkg_FileNotFound {
+            get {
+                return ResourceManager.GetString("LoadFileFromNupkg_FileNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cannot load the file &apos;{0}&apos; because it is larger than {1} MB..
+        /// </summary>
+        internal static string LoadFileFromNupkg_FileTooLarge {
+            get {
+                return ResourceManager.GetString("LoadFileFromNupkg_FileTooLarge", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown problem loading the file &apos;{0}&apos;..
+        /// </summary>
+        internal static string LoadFileFromNupkg_UnknownProblemLoadingTheFile {
+            get {
+                return ResourceManager.GetString("LoadFileFromNupkg_UnknownProblemLoadingTheFile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Downloading a package from &apos;{0}&apos; was canceled..
         /// </summary>
         internal static string Log_CanceledNupkgDownload {
@@ -476,6 +503,24 @@ namespace NuGet.Protocol {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The license version string &apos;{0}&apos; is higher than the one supported by this toolset &apos;{1}&apos;..
+        /// </summary>
+        internal static string NuGetLicense_LicenseExpressionVersionTooHigh {
+            get {
+                return ResourceManager.GetString("NuGetLicense_LicenseExpressionVersionTooHigh", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The license identifier(s) {0} is(are) not recognized by the current toolset..
+        /// </summary>
+        internal static string NuGetLicenseExpression_NonStandardIdentifier {
+            get {
+                return ResourceManager.GetString("NuGetLicenseExpression_NonStandardIdentifier", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Cannot create a NuGet Repository from the Aggregate Source.
         /// </summary>
         internal static string NuGetRepository_CannotCreateAggregateRepo {
@@ -580,6 +625,15 @@ namespace NuGet.Protocol {
         internal static string Plugin_ConnectionIsClosed {
             get {
                 return ResourceManager.GetString("Plugin_ConnectionIsClosed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Downloading a package from a plugin is not supported since unsigned packages are not allowed and package download plugins do not support signed package verification..
+        /// </summary>
+        internal static string Plugin_DownloadNotSupportedSinceUnsignedNotAllowed {
+            get {
+                return ResourceManager.GetString("Plugin_DownloadNotSupportedSinceUnsignedNotAllowed", resourceCulture);
             }
         }
         
@@ -949,6 +1003,24 @@ namespace NuGet.Protocol {
         internal static string PushCommandPushingPackage {
             get {
                 return ResourceManager.GetString("PushCommandPushingPackage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Repository content URL for repository signatures must be HTTPS..
+        /// </summary>
+        internal static string RepositoryContentUrlMustBeHttps {
+            get {
+                return ResourceManager.GetString("RepositoryContentUrlMustBeHttps", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Repository Signatures resouce must be served over HTTPS. Source: {0}.
+        /// </summary>
+        internal static string RepositorySignaturesResourceMustBeHttps {
+            get {
+                return ResourceManager.GetString("RepositorySignaturesResourceMustBeHttps", resourceCulture);
             }
         }
         

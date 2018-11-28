@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
@@ -69,7 +69,7 @@ namespace NuGet.VisualStudio
 
             _preinstalledPackageInstaller = new PreinstalledPackageInstaller(_packageServices, _solutionManager, _settings, _sourceProvider, (VsPackageInstaller)_installer, _vsProjectAdapterProvider);
 
-            PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory.Context);
+            PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory);
         }
 
         private IEnumerable<PreinstalledPackageConfiguration> GetConfigurationsFromVsTemplateFile(string vsTemplatePath)
@@ -266,9 +266,13 @@ namespace NuGet.VisualStudio
             {
                 if (configuration.Packages.Any())
                 {
+                    var packageManagementFormat = new PackageManagementFormat(_settings);
+                    // 1 means PackageReference
+                    var preferPackageReference = packageManagementFormat.SelectedPackageManagementFormat == 1;
                     await _preinstalledPackageInstaller.PerformPackageInstallAsync(_installer,
                         project,
                         configuration,
+                        preferPackageReference,
                         ShowWarningMessage,
                         ShowErrorMessage);
                 }
@@ -285,9 +289,10 @@ namespace NuGet.VisualStudio
             }
         }
 
-        [SuppressMessage("Microsoft.VisualStudio.Threading.Analyzers", "VSTHRD010", Justification = "NuGet/Home#4833 Baseline")]
         private void RunDesignTimeBuild(Project project)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             var solution = ServiceProvider.GlobalProvider.GetService(typeof(SVsSolution)) as IVsSolution;
 
             if (solution != null)

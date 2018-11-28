@@ -12,6 +12,7 @@ using NuGet.Frameworks;
 using NuGet.LibraryModel;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.Packaging.Licenses;
 using NuGet.ProjectModel;
 using NuGet.Versioning;
 
@@ -24,24 +25,18 @@ namespace NuGet.Build.Tasks.Pack
         {
             var packArgs = new PackArgs
             {
+                InstallPackageToOutputPath = request.InstallPackageToOutputPath,
+                OutputFileNamesWithoutVersion = request.OutputFileNamesWithoutVersion,
                 OutputDirectory = request.PackageOutputPath,
                 Serviceable = request.Serviceable,
                 Tool = request.IsTool,
                 Symbols = request.IncludeSymbols,
+                SymbolPackageFormat = PackArgs.GetSymbolPackageFormat(request.SymbolPackageFormat),
                 BasePath = request.NuspecBasePath,
                 NoPackageAnalysis = request.NoPackageAnalysis,
+                NoDefaultExcludes = request.NoDefaultExcludes,
                 WarningProperties = WarningProperties.GetWarningProperties(request.TreatWarningsAsErrors, request.WarningsAsErrors, request.NoWarn),
-                PackTargetArgs = new MSBuildPackTargetArgs
-                {
-                    AllowedOutputExtensionsInPackageBuildOutputFolder = InitOutputExtensions(request.AllowedOutputExtensionsInPackageBuildOutputFolder),
-                    AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder = InitOutputExtensions(request.AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder),
-                    TargetPathsToAssemblies = InitLibFiles(request.BuildOutputInPackage),
-                    TargetPathsToSymbols = InitLibFiles(request.TargetPathsToSymbols),
-                    AssemblyName = request.AssemblyName,
-                    IncludeBuildOutput = request.IncludeBuildOutput,
-                    BuildOutputFolder = request.BuildOutputFolder,
-                    TargetFrameworks = ParseFrameworks(request)
-                }
+                PackTargetArgs = new MSBuildPackTargetArgs()
             };
 
             packArgs.Logger = new PackCollectorLogger(request.Logger, packArgs.WarningProperties);
@@ -60,28 +55,43 @@ namespace NuGet.Build.Tasks.Pack
                 packArgs.MinClientVersion = version;
             }
 
-            if (request.NuspecProperties != null && request.NuspecProperties.Any())
-            {
-                packArgs.Properties.AddRange(ParsePropertiesAsDictionary(request.NuspecProperties));
-                if (packArgs.Properties.ContainsKey("version"))
-                {
-                    packArgs.Version = packArgs.Properties["version"];
-                }
-            }
 
             InitCurrentDirectoryAndFileName(request, packArgs);
             InitNuspecOutputPath(request, packArgs);
-
-            if (request.IncludeSource)
-            {
-                packArgs.PackTargetArgs.SourceFiles = GetSourceFiles(request, packArgs.CurrentDirectory);
-                packArgs.Symbols = request.IncludeSource;
-            }
-
             PackCommandRunner.SetupCurrentDirectory(packArgs);
 
-            var contentFiles = ProcessContentToIncludeInPackage(request, packArgs);
-            packArgs.PackTargetArgs.ContentFiles = contentFiles;
+            if (!string.IsNullOrEmpty(request.NuspecFile))
+            {
+                if (request.NuspecProperties != null && request.NuspecProperties.Any())
+                {
+                    packArgs.Properties.AddRange(ParsePropertiesAsDictionary(request.NuspecProperties));
+                    if (packArgs.Properties.ContainsKey("version"))
+                    {
+                        packArgs.Version = packArgs.Properties["version"];
+                    }
+                }
+            }
+            else
+            {
+                // This only needs to happen when packing via csproj, not nuspec.
+                packArgs.PackTargetArgs.AllowedOutputExtensionsInPackageBuildOutputFolder = InitOutputExtensions(request.AllowedOutputExtensionsInPackageBuildOutputFolder);
+                packArgs.PackTargetArgs.AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder = InitOutputExtensions(request.AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder);
+                packArgs.PackTargetArgs.TargetPathsToAssemblies = InitLibFiles(request.BuildOutputInPackage);
+                packArgs.PackTargetArgs.TargetPathsToSymbols = InitLibFiles(request.TargetPathsToSymbols);
+                packArgs.PackTargetArgs.AssemblyName = request.AssemblyName;
+                packArgs.PackTargetArgs.IncludeBuildOutput = request.IncludeBuildOutput;
+                packArgs.PackTargetArgs.BuildOutputFolder = request.BuildOutputFolder;
+                packArgs.PackTargetArgs.TargetFrameworks = ParseFrameworks(request);
+
+                if (request.IncludeSource)
+                {
+                    packArgs.PackTargetArgs.SourceFiles = GetSourceFiles(request, packArgs.CurrentDirectory);
+                    packArgs.Symbols = request.IncludeSource;
+                }
+
+                var contentFiles = ProcessContentToIncludeInPackage(request, packArgs);
+                packArgs.PackTargetArgs.ContentFiles = contentFiles;
+            }
 
             return packArgs;
         }
@@ -162,6 +172,9 @@ namespace NuGet.Build.Tasks.Pack
                     request.RepositoryBranch,
                     request.RepositoryCommit);
             }
+
+            builder.LicenseMetadata = BuildLicenseMetadata(request);
+
             if (request.MinClientVersion != null)
             {
                 Version version;
@@ -198,12 +211,112 @@ namespace NuGet.Build.Tasks.Pack
                     .ToDictionary(msbuildItem => msbuildItem.Identity,
                     msbuildItem => msbuildItem.GetProperty("ProjectVersion"), PathUtility.GetStringComparerBasedOnOS());
             }
+            var nuGetFrameworkComparer = new NuGetFrameworkFullComparer();
+            var frameworksWithSuppressedDependencies = new HashSet<NuGetFramework>(nuGetFrameworkComparer);
+            if (request.FrameworksWithSuppressedDependencies != null && request.FrameworksWithSuppressedDependencies.Any())
+            {
+                frameworksWithSuppressedDependencies =
+                    new HashSet<NuGetFramework>(request.FrameworksWithSuppressedDependencies
+                    .Select(t => NuGetFramework.Parse(t.Identity)).ToList(), nuGetFrameworkComparer);
+            }
 
             PopulateProjectAndPackageReferences(builder,
                 assetsFile,
-                projectRefToVersionMap);
+                projectRefToVersionMap,
+                frameworksWithSuppressedDependencies);
+
             PopulateFrameworkAssemblyReferences(builder, request);
+
             return builder;
+        }
+
+        private LicenseMetadata BuildLicenseMetadata(IPackTaskRequest<IMSBuildItem> request)
+        {
+            var hasLicenseExpression = !string.IsNullOrEmpty(request.PackageLicenseExpression);
+            var hasLicenseFile = !string.IsNullOrEmpty(request.PackageLicenseFile);
+            if (hasLicenseExpression || hasLicenseFile)
+            {
+                if (!string.IsNullOrEmpty(request.LicenseUrl))
+                {
+                    throw new PackagingException(NuGetLogCode.NU5035, string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.NuGetLicenses_LicenseUrlCannotBeUsedInConjuctionWithLicense));
+                }
+
+                if (hasLicenseExpression && hasLicenseFile)
+                {
+                    throw new PackagingException(NuGetLogCode.NU5033, string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.InvalidLicenseCombination,
+                        request.PackageLicenseExpression));
+                }
+
+                var version = GetLicenseExpressionVersion(request);
+
+                if (hasLicenseExpression)
+                {
+                    if (version.CompareTo(LicenseMetadata.CurrentVersion) <= 0)
+                    {
+                        try
+                        {
+                            var expression = NuGetLicenseExpression.Parse(request.PackageLicenseExpression);
+                            return new LicenseMetadata(
+                                type: LicenseType.Expression,
+                                license: request.PackageLicenseExpression,
+                                expression: expression,
+                                warningsAndErrors: null,
+                                version: version);
+                        }
+                        catch (NuGetLicenseExpressionParsingException e)
+                        {
+                            throw new PackagingException(NuGetLogCode.NU5032, string.Format(
+                                   CultureInfo.CurrentCulture,
+                                   Strings.InvalidLicenseExpression,
+                                   request.PackageLicenseExpression, e.Message),
+                                   e);
+                        }
+                    }
+                    else
+                    {
+                        throw new PackagingException(NuGetLogCode.NU5034, string.Format(
+                                   CultureInfo.CurrentCulture,
+                                   Strings.InvalidLicenseExppressionVersion_VersionTooHigh,
+                                   request.PackageLicenseExpressionVersion,
+                                   LicenseMetadata.CurrentVersion));
+                    }
+                }
+                if (hasLicenseFile)
+                {
+                    return new LicenseMetadata(
+                        type: LicenseType.File,
+                        license: request.PackageLicenseFile,
+                        expression: null,
+                        warningsAndErrors: null,
+                        version: version);
+                }
+            }
+            return null;
+        }
+
+        private static Version GetLicenseExpressionVersion(IPackTaskRequest<IMSBuildItem> request)
+        {
+            Version version;
+            if (string.IsNullOrEmpty(request.PackageLicenseExpressionVersion))
+            {
+                version = LicenseMetadata.EmptyVersion;
+            }
+            else
+            {
+                if (!Version.TryParse(request.PackageLicenseExpressionVersion, out version))
+                {
+                    throw new PackagingException(NuGetLogCode.NU5034, string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.InvalidLicenseExpressionVersion,
+                        request.PackageLicenseExpressionVersion));
+                }
+            }
+
+            return version;
         }
 
         private void PopulateFrameworkAssemblyReferences(PackageBuilder builder, IPackTaskRequest<IMSBuildItem> request)
@@ -593,12 +706,13 @@ namespace NuGet.Build.Tasks.Pack
         }
 
         private void PopulateProjectAndPackageReferences(PackageBuilder packageBuilder, LockFile assetsFile,
-            IDictionary<string, string> projectRefToVersionMap)
+            IDictionary<string, string> projectRefToVersionMap,
+            ISet<NuGetFramework> frameworksWithSuppressedDependencies)
         {
             var dependenciesByFramework = new Dictionary<NuGetFramework, HashSet<LibraryDependency>>();
 
-            InitializeProjectDependencies(assetsFile, dependenciesByFramework, projectRefToVersionMap);
-            InitializePackageDependencies(assetsFile, dependenciesByFramework);
+            InitializeProjectDependencies(assetsFile, dependenciesByFramework, projectRefToVersionMap, frameworksWithSuppressedDependencies);
+            InitializePackageDependencies(assetsFile, dependenciesByFramework, frameworksWithSuppressedDependencies);
 
             foreach (var pair in dependenciesByFramework)
             {
@@ -609,7 +723,8 @@ namespace NuGet.Build.Tasks.Pack
         private static void InitializeProjectDependencies(
             LockFile assetsFile,
             IDictionary<NuGetFramework, HashSet<LibraryDependency>> dependenciesByFramework,
-            IDictionary<string, string> projectRefToVersionMap)
+            IDictionary<string, string> projectRefToVersionMap,
+            ISet<NuGetFramework> frameworkWithSuppressedDependencies)
         {
             // From the package spec, all we know is each absolute path to the project reference the the target
             // framework that project reference applies to.
@@ -633,7 +748,7 @@ namespace NuGet.Build.Tasks.Pack
             foreach (var framework in assetsFile.PackageSpec.RestoreMetadata.TargetFrameworks)
             {
                 var target = assetsFile.GetTarget(framework.FrameworkName, runtimeIdentifier: null);
-                if (target == null)
+                if (target == null || frameworkWithSuppressedDependencies.Contains(framework.FrameworkName))
                 {
                     continue;
                 }
@@ -692,11 +807,17 @@ namespace NuGet.Build.Tasks.Pack
 
         private static void InitializePackageDependencies(
             LockFile assetsFile,
-            Dictionary<NuGetFramework, HashSet<LibraryDependency>> dependenciesByFramework)
+            Dictionary<NuGetFramework, HashSet<LibraryDependency>> dependenciesByFramework,
+            ISet<NuGetFramework> frameworkWithSuppressedDependencies)
         {
             // From the package spec, we know the direct package dependencies of this project.
             foreach (var framework in assetsFile.PackageSpec.TargetFrameworks)
             {
+                if(frameworkWithSuppressedDependencies.Contains(framework.FrameworkName))
+                {
+                    continue;
+                }
+
                 // First, add each of the generic package dependencies to the framework-specific list.
                 var packageDependencies = assetsFile
                     .PackageSpec
@@ -737,12 +858,19 @@ namespace NuGet.Build.Tasks.Pack
             var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in properties)
             {
-                int index = item.IndexOf("=");
+                var index = item.IndexOf("=");
                 // Make sure '=' is not the first or the last character of the string
                 if (index > 0 && index < item.Length - 1)
                 {
                     var key = item.Substring(0, index);
                     var value = item.Substring(index + 1);
+                    dictionary[key] = value;
+                }
+                // if value is empty string, set it to string.Empty instead of erroring out
+                else if (index == item.Length - 1)
+                {
+                    var key = item.Substring(0, index);
+                    var value = string.Empty;
                     dictionary[key] = value;
                 }
                 else

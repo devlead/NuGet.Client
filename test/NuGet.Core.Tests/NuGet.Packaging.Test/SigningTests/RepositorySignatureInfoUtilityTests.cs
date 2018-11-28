@@ -38,7 +38,7 @@ namespace NuGet.Packaging.Test
         }
 
         [Fact]
-        public void GetSignedPackageVerifierSettings_RepoSignatureInfoTrueAllSignedClearsAllowUnsignedIfSet()
+        public void GetSignedPackageVerifierSettings_RepoSignatureInfoAllSignedTrue_ClearsAllowUnsignedIfSet()
         {
             // Arrange
             var allSigned = true;
@@ -50,12 +50,15 @@ namespace NuGet.Packaging.Test
             // Assert
             settings.AllowUnsigned.Should().BeFalse();
             settings.AllowIllegal.Should().BeTrue();
-            settings.AllowUntrusted.Should().BeTrue();
+            settings.AllowUntrusted.Should().BeFalse();
             settings.AllowIgnoreTimestamp.Should().BeTrue();
             settings.AllowNoTimestamp.Should().BeTrue();
             settings.AllowMultipleTimestamps.Should().BeTrue();
             settings.AllowUnknownRevocation.Should().BeTrue();
-            settings.AlwaysVerifyCountersignature.Should().BeTrue();
+            settings.ReportUnknownRevocation.Should().BeFalse();
+            settings.VerificationTarget.Should().Be(VerificationTarget.All);
+            settings.SignaturePlacement.Should().Be(SignaturePlacement.Any);
+            settings.RepositoryCountersignatureVerificationBehavior.Should().Be(SignatureVerificationBehavior.IfExistsAndIsNecessary);
         }
 
         [Fact]
@@ -76,9 +79,10 @@ namespace NuGet.Packaging.Test
             settings.AllowNoTimestamp.Should().BeTrue();
             settings.AllowMultipleTimestamps.Should().BeTrue();
             settings.AllowUnknownRevocation.Should().BeTrue();
-            settings.AllowNoClientCertificateList.Should().BeTrue();
-            settings.AllowNoRepositoryCertificateList.Should().BeFalse();
-            settings.AlwaysVerifyCountersignature.Should().BeTrue();
+            settings.ReportUnknownRevocation.Should().BeTrue();
+            settings.VerificationTarget.Should().Be(VerificationTarget.All);
+            settings.SignaturePlacement.Should().Be(SignaturePlacement.Any);
+            settings.RepositoryCountersignatureVerificationBehavior.Should().Be(SignatureVerificationBehavior.IfExists);
         }
 
         [Fact]
@@ -109,13 +113,12 @@ namespace NuGet.Packaging.Test
         }
 
         [Fact]
-        public void GetSignedPackageVerifierSettings_RepoSignatureInfoCertificateListWithOneEntryCorrectlyPassedToSetting()
+        public void GetRepositoryAllowList_RepoSignatureInfoCertificateListWithOneEntryCorrectlyPassedToSetting()
         {
             // Arrange
             var target = VerificationTarget.Repository;
             var placement = SignaturePlacement.PrimarySignature | SignaturePlacement.Countersignature;
 
-            var allSigned = true;
             var certFingerprints = new Dictionary<string, string>()
             {
                 { HashAlgorithmName.SHA256.ConvertToOidString(), HashAlgorithmName.SHA256.ToString() },
@@ -146,26 +149,20 @@ namespace NuGet.Packaging.Test
                 new CertificateHashAllowListEntry(target, placement, HashAlgorithmName.SHA512.ToString(), HashAlgorithmName.SHA512)
             };
 
-            var repoSignatureInfo = new RepositorySignatureInfo(allSigned, repoCertificateInfo);
-
             // Act
-            var settings = RepositorySignatureInfoUtility.GetSignedPackageVerifierSettings(repoSignatureInfo, _defaultSettings);
+            var allowList = RepositorySignatureInfoUtility.GetRepositoryAllowList(repoCertificateInfo);
 
             // Assert
-            settings.AllowUnsigned.Should().BeFalse();
-            settings.AllowNoClientCertificateList.Should().BeTrue();
-            settings.AllowNoRepositoryCertificateList.Should().BeFalse();
-            settings.RepositoryCertificateList.Should().NotBeNull();
-            settings.RepositoryCertificateList.ShouldBeEquivalentTo(expectedAllowList);
+            allowList.ShouldBeEquivalentTo(expectedAllowList);
         }
 
         [Fact]
-        public void GetSignedPackageVerifierSettings_RepoSignatureInfoCertificateListWithMultipleEntriesCorrectlyPassedToSetting()
+        public void GetRepositoryAllowList_RepoSignatureInfoCertificateListWithMultipleEntriesCorrectlyPassedToSetting()
         {
             // Arrange
             var target = VerificationTarget.Repository;
             var placement = SignaturePlacement.PrimarySignature | SignaturePlacement.Countersignature;
-            var allSigned = true;
+
             var firstCertFingerprints = new Dictionary<string, string>()
             {
                 { HashAlgorithmName.SHA256.ConvertToOidString(), $"{HashAlgorithmName.SHA256.ToString()}_first" },
@@ -208,89 +205,11 @@ namespace NuGet.Packaging.Test
                 new CertificateHashAllowListEntry(target, placement, $"{HashAlgorithmName.SHA256.ToString()}_second", HashAlgorithmName.SHA256)
             };
 
-            var repoSignatureInfo = new RepositorySignatureInfo(allSigned, repoCertificateInfo);
-
             // Act
-            var settings = RepositorySignatureInfoUtility.GetSignedPackageVerifierSettings(repoSignatureInfo, _defaultSettings);
+            var allowList = RepositorySignatureInfoUtility.GetRepositoryAllowList(repoCertificateInfo);
 
             // Assert
-            settings.AllowUnsigned.Should().BeFalse();
-            settings.AllowNoClientCertificateList.Should().BeTrue();
-            settings.AllowNoRepositoryCertificateList.Should().BeFalse();
-            settings.RepositoryCertificateList.Should().NotBeNull();
-            settings.RepositoryCertificateList.ShouldBeEquivalentTo(expectedAllowList);
-        }
-
-        [Fact]
-        public void GetSignedPackageVerifierSettings_ClientAllowListInfoPassedToSetting()
-        {
-            // Arrange
-            var target = VerificationTarget.Repository;
-            var placement = SignaturePlacement.PrimarySignature | SignaturePlacement.Countersignature;
-            var allSigned = true;
-            var certFingerprints = new Dictionary<string, string>()
-            {
-                { HashAlgorithmName.SHA256.ConvertToOidString(), HashAlgorithmName.SHA256.ToString() },
-                { HashAlgorithmName.SHA384.ConvertToOidString(), HashAlgorithmName.SHA384.ToString() },
-                { HashAlgorithmName.SHA512.ConvertToOidString(), HashAlgorithmName.SHA512.ToString() },
-                { "1.3.14.3.2.26", "SHA1" },
-            };
-
-            var testCertInfo = new TestRepositoryCertificateInfo()
-            {
-                ContentUrl = @"https://unit.test",
-                Fingerprints = new Fingerprints(certFingerprints),
-                Issuer = "CN=Issuer",
-                Subject = "CN=Subject",
-                NotBefore = DateTimeOffset.UtcNow,
-                NotAfter = DateTimeOffset.UtcNow
-            };
-
-            var repoCertificateInfo = new List<IRepositoryCertificateInfo>()
-            {
-                testCertInfo
-            };
-
-            var expectedClientAllowList = new List<CertificateHashAllowListEntry>()
-            {
-                new CertificateHashAllowListEntry(target, placement, HashAlgorithmName.SHA256.ToString(), HashAlgorithmName.SHA256)
-            };
-
-
-            var expectedRepoAllowList = new List<CertificateHashAllowListEntry>()
-            {
-                new CertificateHashAllowListEntry(target, placement, HashAlgorithmName.SHA256.ToString(), HashAlgorithmName.SHA256),
-                new CertificateHashAllowListEntry(target, placement, HashAlgorithmName.SHA384.ToString(), HashAlgorithmName.SHA384),
-                new CertificateHashAllowListEntry(target, placement, HashAlgorithmName.SHA512.ToString(), HashAlgorithmName.SHA512)
-            };
-
-            var repoSignatureInfo = new RepositorySignatureInfo(allSigned, repoCertificateInfo);
-
-            var fallbackSettings = new SignedPackageVerifierSettings(
-                allowUnsigned: true,
-                allowIllegal: true,
-                allowUntrusted: true,
-                allowIgnoreTimestamp: true,
-                allowMultipleTimestamps: true,
-                allowNoTimestamp: true,
-                allowUnknownRevocation: true,
-                allowNoRepositoryCertificateList: true,
-                allowNoClientCertificateList: false,
-                alwaysVerifyCountersignature: true,
-                repoAllowListEntries: null,
-                clientAllowListEntries: expectedClientAllowList);
-
-            // Act
-            var settings = RepositorySignatureInfoUtility.GetSignedPackageVerifierSettings(repoSignatureInfo, fallbackSettings);
-
-            // Assert
-            settings.AllowUnsigned.Should().BeFalse();
-            settings.AllowNoClientCertificateList.Should().BeFalse();
-            settings.AllowNoRepositoryCertificateList.Should().BeFalse();
-            settings.ClientCertificateList.Should().NotBeNull();
-            settings.ClientCertificateList.ShouldBeEquivalentTo(expectedClientAllowList);
-            settings.RepositoryCertificateList.Should().NotBeNull();
-            settings.RepositoryCertificateList.ShouldBeEquivalentTo(expectedRepoAllowList);
+            allowList.ShouldBeEquivalentTo(expectedAllowList);
         }
     }
 }

@@ -142,6 +142,15 @@ namespace NuGet.PackageManagement.VisualStudio {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The plugin credential providers could not be loaded..
+        /// </summary>
+        public static string CredentialProviderFailed_PluginCredentialProvider {
+            get {
+                return ResourceManager.GetString("CredentialProviderFailed_PluginCredentialProvider", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The Visual Studio or VSTS account provider failed to load..
         /// </summary>
         public static string CredentialProviderFailed_VisualStudioAccountProvider {
@@ -412,7 +421,7 @@ namespace NuGet.PackageManagement.VisualStudio {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The NuGet operation failed due to one or more packages being incompatible with your project. The &apos;{0}&apos; (&apos;{1}&apos;) project framework is deprecated. For more information about how to migrate your projects to a supported framework, please refer to the .
+        ///   Looks up a localized string similar to The NuGet operation failed due to one or more packages being incompatible with your project. The &apos;{0}&apos; (&apos;{1}&apos;) project framework is deprecated. For more information about how to migrate your projects to a supported framework, please refer to the.
         /// </summary>
         public static string Text_DeprecatedFramework_DocumentLink_Before {
             get {

@@ -1,9 +1,12 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using NuGet.Packaging;
+using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
 
@@ -17,6 +20,7 @@ namespace NuGet.PackageManagement.UI
 
         public DetailedPackageMetadata(IPackageSearchMetadata serverData, long? downloadCount)
         {
+            Id = serverData.Identity.Id;
             Version = serverData.Identity.Version;
             Summary = serverData.Summary;
             Description = serverData.Description;
@@ -35,9 +39,16 @@ namespace NuGet.PackageManagement.UI
             HasDependencies = DependencySets.Any(
                 dependencySet => dependencySet.Dependencies != null && dependencySet.Dependencies.Count > 0);
             PrefixReserved = serverData.PrefixReserved;
+            LicenseMetadata = serverData.LicenseMetadata;
+            _localMetadata = serverData as LocalPackageSearchMetadata;
         }
 
+        private readonly LocalPackageSearchMetadata _localMetadata;
+
+        public string Id { get; set; }
+
         public NuGetVersion Version { get; set; }
+
         public string Summary { get; set; }
 
         public string Description { get; set; }
@@ -66,5 +77,18 @@ namespace NuGet.PackageManagement.UI
 
         // This property is used by data binding to display text "No dependencies"
         public bool HasDependencies { get; set; }
+
+        public LicenseMetadata LicenseMetadata { get; set; }
+
+        public IReadOnlyList<IText> LicenseLinks => PackageLicenseUtilities.GenerateLicenseLinks(this);
+
+        public string LoadFileAsText(string path)
+        {
+            if (_localMetadata != null)
+            {
+                return _localMetadata.LoadFileAsText(path);
+            }
+            return null;
+        }
     }
 }

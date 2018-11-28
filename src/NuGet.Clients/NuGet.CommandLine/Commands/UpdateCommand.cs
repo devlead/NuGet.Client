@@ -1,8 +1,10 @@
+// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
 extern alias CoreV2;
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -15,6 +17,9 @@ using NuGet.ProjectManagement;
 using NuGet.Protocol.Core.Types;
 using NuGet.Packaging.Core;
 using NuGet.Versioning;
+using NuGet.Packaging.Signing;
+using NuGet.Packaging;
+using NuGet.Packaging.PackageExtraction;
 
 namespace NuGet.CommandLine
 {
@@ -56,7 +61,7 @@ namespace NuGet.CommandLine
         public string MSBuildPath { get; set; }
 
         // The directory that contains msbuild
-        private Lazy<string> _msbuildDirectory;
+        private string _msbuildDirectory;
 
         public override async Task ExecuteCommandAsync()
         {
@@ -75,8 +80,17 @@ namespace NuGet.CommandLine
                 throw new CommandLineException(NuGetResources.InvalidFile);
             }
 
-            _msbuildDirectory = MsBuildUtility.GetMsBuildDirectoryFromMsBuildPath(MSBuildPath, MSBuildVersion, Console);
+            _msbuildDirectory = MsBuildUtility.GetMsBuildDirectoryFromMsBuildPath(MSBuildPath, MSBuildVersion, Console).Value.Path;
             var context = new UpdateConsoleProjectContext(Console, FileConflictAction);
+
+            var logger = new LoggerAdapter(context);
+            var clientPolicyContext = ClientPolicyContext.GetClientPolicy(Settings, logger);
+
+            context.PackageExtractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv2,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                clientPolicyContext,
+                logger);
 
             string inputFileName = Path.GetFileName(inputFile);
             // update with packages.config as parameter
@@ -95,7 +109,7 @@ namespace NuGet.CommandLine
                 }
 
                 var projectSystem = new MSBuildProjectSystem(
-                    _msbuildDirectory.Value,
+                    _msbuildDirectory,
                     inputFile,
                     context);
                 await UpdatePackagesAsync(projectSystem, GetRepositoryPath(projectSystem.ProjectFullPath));
@@ -217,7 +231,7 @@ namespace NuGet.CommandLine
 
         private static string GetPackagesConfigPath(string path)
         {
-            if (path.EndsWith(Constants.PackageReferenceFile, StringComparison.OrdinalIgnoreCase))
+            if (CommandLineUtility.IsValidConfigFileName(Path.GetFileName(path)))
             {
                 return Path.GetFullPath(path);
             }
@@ -417,7 +431,7 @@ namespace NuGet.CommandLine
                 throw new CommandLineException(LocalizedResourceManager.GetString("MultipleProjectFilesFound"), packageReferenceFilePath);
             }
 
-            return new MSBuildProjectSystem(_msbuildDirectory.Value, projectFiles[0], projectContext);
+            return new MSBuildProjectSystem(_msbuildDirectory, projectFiles[0], projectContext);
         }
 
 

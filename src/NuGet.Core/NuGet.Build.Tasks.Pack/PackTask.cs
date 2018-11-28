@@ -37,11 +37,14 @@ namespace NuGet.Build.Tasks.Pack
         public string[] Tags { get; set; }
         public string ReleaseNotes { get; set; }
         public ITaskItem[] TargetPathsToSymbols { get; set; }
+        public ITaskItem[] FrameworksWithSuppressedDependencies { get; set; }
         public string AssemblyName { get; set; }
         public string PackageOutputPath { get; set; }
         public bool IsTool { get; set; }
         public bool IncludeSymbols { get; set; }
         public bool IncludeSource { get; set; }
+        public bool InstallPackageToOutputPath { get; set; }
+        public bool OutputFileNamesWithoutVersion { get; set; }
         public string RepositoryUrl { get; set; }
         public string RepositoryType { get; set; }
         public string RepositoryBranch { get; set; }
@@ -49,10 +52,12 @@ namespace NuGet.Build.Tasks.Pack
         public ITaskItem[] SourceFiles { get; set; }
         public bool NoPackageAnalysis { get; set; }
         public string NuspecFile { get; set; }
+        public string SymbolPackageFormat { get; set; }
         public string MinClientVersion { get; set; }
         public bool Serviceable { get; set; }
         public ITaskItem[] FrameworkAssemblyReferences { get; set; }
         public bool ContinuePackingAfterGeneratingNuspec { get; set; }
+        public bool NoDefaultExcludes { get; set; }
         public string NuspecOutputPath { get; set; }
         public bool IncludeBuildOutput { get; set; }
         public string BuildOutputFolder { get; set; }
@@ -64,6 +69,9 @@ namespace NuGet.Build.Tasks.Pack
         public string NoWarn { get; set; }
         public string TreatWarningsAsErrors { get; set; }
         public string WarningsAsErrors { get; set; }
+        public string PackageLicenseExpression { get; set; }
+        public string PackageLicenseFile { get; set; }
+        public string PackageLicenseExpressionVersion { get; set; }
         public ILogger Logger => new MSBuildLogger(Log);
 
         private IPackTaskLogic _packTaskLogic;
@@ -158,19 +166,23 @@ namespace NuGet.Build.Tasks.Pack
                 Description = MSBuildStringUtility.TrimAndGetNullForEmpty(Description),
                 DevelopmentDependency = DevelopmentDependency,
                 FrameworkAssemblyReferences = MSBuildUtility.WrapMSBuildItem(FrameworkAssemblyReferences),
+                FrameworksWithSuppressedDependencies = MSBuildUtility.WrapMSBuildItem(FrameworksWithSuppressedDependencies),
                 IconUrl = MSBuildStringUtility.TrimAndGetNullForEmpty(IconUrl),
                 IncludeBuildOutput = IncludeBuildOutput,
                 IncludeSource = IncludeSource,
                 IncludeSymbols = IncludeSymbols,
+                InstallPackageToOutputPath = InstallPackageToOutputPath,
                 IsTool = IsTool,
                 LicenseUrl = MSBuildStringUtility.TrimAndGetNullForEmpty(LicenseUrl),
                 Logger = Logger,
                 MinClientVersion = MSBuildStringUtility.TrimAndGetNullForEmpty(MinClientVersion),
+                NoDefaultExcludes = NoDefaultExcludes,
                 NoPackageAnalysis = NoPackageAnalysis,
                 NuspecBasePath = MSBuildStringUtility.TrimAndGetNullForEmpty(NuspecBasePath),
                 NuspecFile = MSBuildStringUtility.TrimAndGetNullForEmpty(NuspecFile),
                 NuspecOutputPath = MSBuildStringUtility.TrimAndGetNullForEmpty(NuspecOutputPath),
                 NuspecProperties = MSBuildStringUtility.TrimAndExcludeNullOrEmpty(NuspecProperties),
+                OutputFileNamesWithoutVersion = OutputFileNamesWithoutVersion,
                 PackageFiles = MSBuildUtility.WrapMSBuildItem(PackageFiles),
                 PackageFilesToExclude = MSBuildUtility.WrapMSBuildItem(PackageFilesToExclude),
                 PackageId = MSBuildStringUtility.TrimAndGetNullForEmpty(PackageId),
@@ -189,13 +201,17 @@ namespace NuGet.Build.Tasks.Pack
                 RestoreOutputPath = MSBuildStringUtility.TrimAndGetNullForEmpty(RestoreOutputPath),
                 Serviceable = Serviceable,
                 SourceFiles = MSBuildUtility.WrapMSBuildItem(SourceFiles),
+                SymbolPackageFormat = MSBuildStringUtility.TrimAndGetNullForEmpty(SymbolPackageFormat),
                 Tags = MSBuildStringUtility.TrimAndExcludeNullOrEmpty(Tags),
                 TargetFrameworks = MSBuildStringUtility.TrimAndExcludeNullOrEmpty(TargetFrameworks),
                 TargetPathsToSymbols = MSBuildUtility.WrapMSBuildItem(TargetPathsToSymbols),
                 Title = MSBuildStringUtility.TrimAndGetNullForEmpty(Title),
                 TreatWarningsAsErrors = MSBuildStringUtility.TrimAndGetNullForEmpty(TreatWarningsAsErrors),
                 NoWarn = MSBuildStringUtility.TrimAndGetNullForEmpty(NoWarn),
-                WarningsAsErrors = MSBuildStringUtility.TrimAndGetNullForEmpty(WarningsAsErrors)
+                WarningsAsErrors = MSBuildStringUtility.TrimAndGetNullForEmpty(WarningsAsErrors),
+                PackageLicenseExpression = MSBuildStringUtility.TrimAndGetNullForEmpty(PackageLicenseExpression),
+                PackageLicenseFile = MSBuildStringUtility.TrimAndGetNullForEmpty(PackageLicenseFile),
+                PackageLicenseExpressionVersion = MSBuildStringUtility.TrimAndGetNullForEmpty(PackageLicenseExpressionVersion),
             };
         }
     }

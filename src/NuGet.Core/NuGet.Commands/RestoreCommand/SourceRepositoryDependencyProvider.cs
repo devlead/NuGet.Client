@@ -33,6 +33,7 @@ namespace NuGet.Commands
         private FindPackageByIdResource _findPackagesByIdResource;
         private bool _ignoreFailedSources;
         private bool _ignoreWarning;
+        private bool _isFallbackFolderSource;
 
         private readonly ConcurrentDictionary<LibraryRangeCacheKey, AsyncLazy<LibraryDependencyInfo>> _dependencyInfoCache
             = new ConcurrentDictionary<LibraryRangeCacheKey, AsyncLazy<LibraryDependencyInfo>>();
@@ -68,7 +69,7 @@ namespace NuGet.Commands
             SourceCacheContext cacheContext,
             bool ignoreFailedSources,
             bool ignoreWarning)
-            : this(sourceRepository, logger, cacheContext, ignoreFailedSources, ignoreWarning, fileCache: null)
+            : this(sourceRepository, logger, cacheContext, ignoreFailedSources, ignoreWarning, fileCache: null, isFallbackFolderSource: false)
         {
         }
 
@@ -91,7 +92,8 @@ namespace NuGet.Commands
         SourceCacheContext cacheContext,
         bool ignoreFailedSources,
         bool ignoreWarning,
-        LocalPackageFileCache fileCache)
+        LocalPackageFileCache fileCache,
+        bool isFallbackFolderSource)
         {
             if (sourceRepository == null)
             {
@@ -114,6 +116,7 @@ namespace NuGet.Commands
             _ignoreFailedSources = ignoreFailedSources;
             _ignoreWarning = ignoreWarning;
             _packageFileCache = fileCache;
+            _isFallbackFolderSource = isFallbackFolderSource;
         }
 
         /// <summary>
@@ -202,24 +205,30 @@ namespace NuGet.Commands
             ILogger logger,
             CancellationToken cancellationToken)
         {
-            await EnsureResource();
-
-            // Discover all versions from the feed
-            var packageVersions = await GetAllVersionsAsync(libraryRange.Name, cacheContext, logger, cancellationToken);
-
-            // Select the best match
-            var packageVersion = packageVersions?.FindBestMatch(libraryRange.VersionRange, version => version);
-
-            if (packageVersion != null)
+            try
             {
-                return new LibraryIdentity
-                {
-                    Name = libraryRange.Name,
-                    Version = packageVersion,
-                    Type = LibraryType.Package
-                };
-            }
+                await EnsureResource();
 
+                // Discover all versions from the feed
+                var packageVersions = await GetAllVersionsAsync(libraryRange.Name, cacheContext, logger, cancellationToken);
+
+                // Select the best match
+                var packageVersion = packageVersions?.FindBestMatch(libraryRange.VersionRange, version => version);
+
+                if(packageVersion != null)
+                {
+                    return new LibraryIdentity
+                    {
+                        Name = libraryRange.Name,
+                        Version = packageVersion,
+                        Type = LibraryType.Package
+                    };
+                }
+            }
+            catch(FatalProtocolException e) when(_ignoreFailedSources)
+            {
+                await LogWarningAsync(libraryRange.Name, e);
+            }
             return null;
         }
 
@@ -299,12 +308,12 @@ namespace NuGet.Commands
             ILogger logger,
             CancellationToken cancellationToken)
         {
-            await EnsureResource();
-
             FindPackageByIdDependencyInfo packageInfo = null;
             try
             {
-                if (_throttle != null)
+                await EnsureResource();
+
+                if(_throttle != null)
                 {
                     await _throttle.WaitAsync();
                 }
@@ -319,10 +328,7 @@ namespace NuGet.Commands
             }
             catch (FatalProtocolException e) when (_ignoreFailedSources && !(e is InvalidCacheProtocolException))
             {
-                if (!_ignoreWarning)
-                {
-                    await _logger.LogAsync(RestoreLogMessage.CreateWarning(NuGetLogCode.NU1801, e.Message, match.Name));
-                }
+                await LogWarningAsync(match.Name, e);
             }
             finally
             {
@@ -389,11 +395,11 @@ namespace NuGet.Commands
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            await EnsureResource();
-
             try
             {
-                if (_throttle != null)
+                await EnsureResource();
+
+                if(_throttle != null)
                 {
                     await _throttle.WaitAsync();
                 }
@@ -409,17 +415,9 @@ namespace NuGet.Commands
                 packageDownloader.SetThrottle(_throttle);
                 packageDownloader.SetExceptionHandler(async exception =>
                 {
-                    if (exception is FatalProtocolException && _ignoreFailedSources)
+                    if (exception is FatalProtocolException e && _ignoreFailedSources)
                     {
-                        if (!_ignoreWarning)
-                        {
-                            await _logger.LogAsync(
-                                RestoreLogMessage.CreateWarning(
-                                    NuGetLogCode.NU1801,
-                                    exception.Message,
-                                    packageIdentity.Id));
-                        }
-
+                        await LogWarningAsync(packageIdentity.Id, e); 
                         return true;
                     }
 
@@ -430,10 +428,7 @@ namespace NuGet.Commands
             }
             catch (FatalProtocolException e) when (_ignoreFailedSources)
             {
-                if (!_ignoreWarning)
-                {
-                    await _logger.LogAsync(RestoreLogMessage.CreateWarning(NuGetLogCode.NU1801, e.Message, packageIdentity.Id));
-                }
+                await LogWarningAsync(packageIdentity.Id, e);
             }
             finally
             {
@@ -480,7 +475,7 @@ namespace NuGet.Commands
                 {
                     if (_findPackagesByIdResource == null)
                     {
-                        AddNuspecCache(resource);
+                        AddLocalV3ResourceOptions(resource);
 
                         _findPackagesByIdResource = resource;
                     }
@@ -488,16 +483,18 @@ namespace NuGet.Commands
             }
         }
 
-        private void AddNuspecCache(FindPackageByIdResource resource)
+        private void AddLocalV3ResourceOptions(FindPackageByIdResource resource)
         {
-            // Link the nuspec cache to the new resource if it exists.
-            if (_packageFileCache != null)
+            var localV3 = resource as LocalV3FindPackageByIdResource;
+            if (localV3 != null)
             {
-                var localV3 = resource as LocalV3FindPackageByIdResource;
-                if (localV3 != null)
+                // Link the nuspec cache to the new resource if it exists.
+                if (_packageFileCache != null)
                 {
                     localV3.PackageFileCache = _packageFileCache;
                 }
+
+                localV3.IsFallbackFolder = _isFallbackFolderSource;
             }
         }
 
@@ -524,6 +521,10 @@ namespace NuGet.Commands
                 {
                     await _throttle.WaitAsync();
                 }
+                if(_findPackagesByIdResource == null)
+                {
+                    return null;
+                }
                 packageVersions = await _findPackagesByIdResource.GetAllVersionsAsync(
                     id,
                     cacheContext,
@@ -532,10 +533,7 @@ namespace NuGet.Commands
             }
             catch (FatalProtocolException e) when (_ignoreFailedSources)
             {
-                if (!_ignoreWarning)
-                {
-                    await _logger.LogAsync(RestoreLogMessage.CreateWarning(NuGetLogCode.NU1801, e.Message, id));
-                }
+                await LogWarningAsync(id, e);
                 return null;
             }
             finally
@@ -544,6 +542,14 @@ namespace NuGet.Commands
             }
 
             return packageVersions;
+        }
+
+        private async Task LogWarningAsync(string id, FatalProtocolException e)
+        {
+            if(!_ignoreWarning)
+            {
+                await _logger.LogAsync(RestoreLogMessage.CreateWarning(NuGetLogCode.NU1801, e.Message, id));
+            }
         }
     }
 }

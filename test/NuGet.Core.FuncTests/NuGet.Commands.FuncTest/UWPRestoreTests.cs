@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System.Collections.Generic;
@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using NuGet.Commands.Test;
 using NuGet.Configuration;
+using NuGet.Packaging.Signing;
 using NuGet.ProjectModel;
 using NuGet.Protocol.Core.Types;
 using NuGet.Test.Utility;
@@ -147,11 +148,11 @@ namespace NuGet.Commands.FuncTest
                 var spec = JsonPackageSpecReader.GetPackageSpec(configJson.ToString(), "TestProject", specPath);
 
                 var logger = new TestLogger();
-                var request = new TestRestoreRequest(spec, sources, packagesDir, cacheContext, logger)
+                var clientPolicyContext = ClientPolicyContext.GetClientPolicy(NullSettings.Instance, logger);
+                var request = new TestRestoreRequest(spec, sources, packagesDir, cacheContext, clientPolicyContext, logger)
                 {
-                    XmlDocFileSaveMode = Packaging.XmlDocFileSaveMode.None
+                    LockFilePath = Path.Combine(projectDir, "project.lock.json")
                 };
-                request.LockFilePath = Path.Combine(projectDir, "project.lock.json");
 
                 var lockFileFormat = new LockFileFormat();
                 var command = new RestoreCommand(request);
@@ -321,7 +322,11 @@ namespace NuGet.Commands.FuncTest
                 Assert.Equal(0, logger.Warnings);
                 Assert.Equal(118, result.GetAllInstalled().Count);
 
-                Assert.Equal(expectedJson.ToString(), lockFileJson.ToString());
+                // TODO: skipping comparing assets file since NuGet.org is doing repo sign for all the existing
+                // packages which is changing the sha512 in the assets file which fails the comparison.
+                // We should enable it once all the packages are repo signed.
+                // tracking issue# https://github.com/NuGet/Home/issues/7361
+                //Assert.Equal(expectedJson.ToString(), lockFileJson.ToString());
             }
         }
 
@@ -389,7 +394,11 @@ namespace NuGet.Commands.FuncTest
                 Assert.Equal(0, logger.Warnings);
                 Assert.Equal(118, result.GetAllInstalled().Count);
 
-                Assert.Equal(expectedJson.ToString(), lockFileJson.ToString());
+                // TODO: skipping comparing assets file since NuGet.org is doing repo sign for all the existing
+                // packages which is changing the sha512 in the assets file which fails the comparison.
+                // We should enable it once all the packages are repo signed.
+                // tracking issue# https://github.com/NuGet/Home/issues/7361
+                //Assert.Equal(expectedJson.ToString(), lockFileJson.ToString());
             }
         }
 

@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
@@ -9,6 +9,9 @@ using EnvDTE;
 using Microsoft.VisualStudio.Threading;
 using NuGet.PackageManagement;
 using NuGet.PackageManagement.VisualStudio;
+using NuGet.Packaging;
+using NuGet.Packaging.PackageExtraction;
+using NuGet.Packaging.Signing;
 using NuGet.ProjectManagement;
 using NuGet.Protocol.Core.Types;
 
@@ -35,7 +38,7 @@ namespace NuGet.VisualStudio
             _settings = settings;
             _solutionManager = solutionManager;
 
-            PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory.Context);
+            PumpingJTF = new PumpingJTF(NuGetUIThreadHelper.JoinableTaskFactory);
             _deleteOnRestartManager = deleteOnRestartManager;
         }
 
@@ -62,6 +65,13 @@ namespace NuGet.VisualStudio
 
                     UninstallationContext uninstallContext = new UninstallationContext(removeDependencies, false);
                     VSAPIProjectContext projectContext = new VSAPIProjectContext();
+
+                    var logger = new LoggerAdapter(projectContext);
+                    projectContext.PackageExtractionContext = new PackageExtractionContext(
+                        PackageSaveMode.Defaultv2,
+                        PackageExtractionBehavior.XmlDocFileSaveMode,
+                        ClientPolicyContext.GetClientPolicy(_settings, logger),
+                        logger);
 
                     // find the project
                     NuGetProject nuGetProject = await _solutionManager.GetOrCreateProjectAsync(project, projectContext);

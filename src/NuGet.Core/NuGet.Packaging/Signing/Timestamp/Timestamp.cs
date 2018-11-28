@@ -104,7 +104,11 @@ namespace NuGet.Packaging.Signing
             HashAlgorithmName fingerprintAlgorithm,
             List<SignatureLog> issues)
         {
-            settings = settings ?? SignedPackageVerifierSettings.GetDefault();
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
             var flags = SignatureVerificationStatusFlags.NoErrors;
 
             if (signature == null)
@@ -142,13 +146,27 @@ namespace NuGet.Packaging.Signing
                 {
                     var chain = chainHolder.Chain;
 
-                    // This flags should only be set for verification scenarios, not signing
-                    chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreNotTimeValid | X509VerificationFlags.IgnoreCtlNotTimeValid;
+                    // This flag should only be set for verification scenarios, not signing.
+                    chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreNotTimeValid;
 
                     CertificateChainUtility.SetCertBuildChainPolicy(chain.ChainPolicy, certificateExtraStore, DateTime.Now, CertificateType.Timestamp);
 
+                    if (settings.RevocationMode == RevocationMode.Offline)
+                    {
+                        chain.ChainPolicy.RevocationMode = X509RevocationMode.Offline;
+                    }
+                    else
+                    {
+                        chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
+                    }
+
                     var chainBuildSucceed = CertificateChainUtility.BuildCertificateChain(chain, timestamperCertificate, out var chainStatusList);
-                    issues.Add(SignatureLog.DetailedLog(CertificateUtility.X509ChainToString(chain, fingerprintAlgorithm)));
+                    var x509ChainString = CertificateUtility.X509ChainToString(chain, fingerprintAlgorithm);
+
+                    if (!string.IsNullOrWhiteSpace(x509ChainString))
+                    {
+                        issues.Add(SignatureLog.DetailedLog(x509ChainString));
+                    }
 
                     if (chainBuildSucceed)
                     {
@@ -158,9 +176,7 @@ namespace NuGet.Packaging.Signing
                     var chainBuildingHasIssues = false;
                     IEnumerable<string> messages;
 
-                    var timestampInvalidCertificateFlags = CertificateChainUtility.DefaultObservedStatusFlags |
-                        (X509ChainStatusFlags.NotTimeValid) |
-                        (X509ChainStatusFlags.CtlNotTimeValid);
+                    var timestampInvalidCertificateFlags = CertificateChainUtility.DefaultObservedStatusFlags;
 
                     if (CertificateChainUtility.TryGetStatusMessage(chainStatusList, timestampInvalidCertificateFlags, out messages))
                     {
@@ -193,14 +209,43 @@ namespace NuGet.Packaging.Signing
                         return flags;
                     }
 
-                    const X509ChainStatusFlags RevocationStatusFlags = X509ChainStatusFlags.RevocationStatusUnknown | X509ChainStatusFlags.OfflineRevocation;
-                    if (CertificateChainUtility.TryGetStatusMessage(chainStatusList, RevocationStatusFlags, out messages))
+                    var offlineRevocationErrors = CertificateChainUtility.TryGetStatusMessage(chainStatusList, X509ChainStatusFlags.OfflineRevocation, out var _);
+                    var unknownRevocationErrors = CertificateChainUtility.TryGetStatusMessage(chainStatusList, X509ChainStatusFlags.RevocationStatusUnknown, out var unknownRevocationStatusMessages);
+                    if (offlineRevocationErrors || unknownRevocationErrors)
                     {
                         if (treatIssueAsError)
                         {
-                            foreach (var message in messages)
+                            string unknownRevocationMessage = null;
+
+                            if (unknownRevocationErrors)
                             {
-                                issues.Add(SignatureLog.Issue(!settings.AllowUnknownRevocation, NuGetLogCode.NU3028, string.Format(CultureInfo.CurrentCulture, Strings.VerifyError_TimestampVerifyChainBuildingIssue, signature.FriendlyName, message)));
+                                unknownRevocationMessage = string.Format(CultureInfo.CurrentCulture, Strings.VerifyError_TimestampVerifyChainBuildingIssue, signature.FriendlyName, unknownRevocationStatusMessages.First());
+                            }
+
+                            if (settings.RevocationMode == RevocationMode.Offline)
+                            {
+                                if (offlineRevocationErrors)
+                                {
+                                    issues.Add(SignatureLog.InformationLog(string.Format(CultureInfo.CurrentCulture, Strings.VerifyError_TimestampVerifyChainBuildingIssue, signature.FriendlyName, Strings.VerifyCertTrustOfflineWhileRevocationModeOffline)));
+                                }
+
+                                if (unknownRevocationMessage != null)
+                                {
+                                    issues.Add(SignatureLog.InformationLog(unknownRevocationMessage));
+                                }
+                            }
+                            else
+                            {
+                                if (offlineRevocationErrors)
+                                {
+                                    issues.Add(SignatureLog.Issue(!settings.AllowUnknownRevocation, NuGetLogCode.NU3028, string.Format(CultureInfo.CurrentCulture, Strings.VerifyError_TimestampVerifyChainBuildingIssue, signature.FriendlyName, Strings.VerifyCertTrustOfflineWhileRevocationModeOnline)));
+                                }
+
+                                if (unknownRevocationMessage != null)
+                                {
+                                    issues.Add(SignatureLog.Issue(!settings.AllowUnknownRevocation, NuGetLogCode.NU3028, unknownRevocationMessage));
+                                }
+
                             }
                         }
 

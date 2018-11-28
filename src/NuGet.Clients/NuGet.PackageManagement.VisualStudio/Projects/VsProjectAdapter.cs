@@ -122,22 +122,7 @@ namespace NuGet.PackageManagement.VisualStudio
         {
             get
             {
-#if VS14
                 return false;
-#else
-                _threadingService.ThrowIfNotOnUIThread();
-
-                object isDeferred;
-                if (ErrorHandler.Failed(VsHierarchy.GetProperty(
-                    (uint)VSConstants.VSITEMID.Root,
-                    (int)__VSHPROPID9.VSHPROPID_IsDeferred,
-                    out isDeferred)))
-                {
-                    return false;
-                }
-
-                return object.Equals(true, isDeferred);
-#endif
             }
         }
 
@@ -376,6 +361,31 @@ namespace NuGet.PackageManagement.VisualStudio
             }
 
             return NuGetFramework.UnsupportedFramework;
+        }
+
+        public async Task<string> GetRestorePackagesWithLockFileAsync()
+        {
+            await _threadingService.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var value = await BuildProperties.GetPropertyValueAsync(ProjectBuildProperties.RestorePackagesWithLockFile);
+
+            return value;
+        }
+
+        public async Task<string> GetNuGetLockFilePathAsync()
+        {
+            await _threadingService.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            return await BuildProperties.GetPropertyValueAsync(ProjectBuildProperties.NuGetLockFilePath);
+        }
+
+        public async Task<bool> IsRestoreLockedAsync()
+        {
+            await _threadingService.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var value = await BuildProperties.GetPropertyValueAsync(ProjectBuildProperties.RestoreLockedMode);
+
+            return MSBuildStringUtility.IsTrue(value);
         }
 
         private async Task<string> GetTargetFrameworkStringAsync()

@@ -4,98 +4,69 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace NuGet.Configuration
 {
     public class NullSettings : ISettings
     {
-        private static readonly NullSettings _settings = new NullSettings();
-
         public event EventHandler SettingsChanged = delegate { };
 
-        public static NullSettings Instance
-        {
-            get { return _settings; }
-        }
+        public static NullSettings Instance { get; } = new NullSettings();
 
-        public string Root
-        {
-            get { return String.Empty; }
-        }
+        public SettingSection GetSection(string sectionName) => null;
 
-        public string FileName
-        {
-            get { return String.Empty; }
-        }
+        public void AddOrUpdate(string sectionName, SettingItem item) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(AddOrUpdate)));
 
-        public IEnumerable<ISettings> Priority
-        {
-            get { return new[] { this }; }
-        }
+        public void Remove(string sectionName, SettingItem item) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(Remove)));
 
-        public string GetValue(string section, string key, bool isPath = false)
-        {
-            return String.Empty;
-        }
+        public void SaveToDisk() { }
 
-        public IList<SettingValue> GetSettingValues(string section, bool isPath)
-        {
-            return new List<SettingValue>().AsReadOnly();
-        }
+        public IList<string> GetConfigFilePaths() => Enumerable.Empty<string>().ToList();
 
-        public IList<KeyValuePair<string, string>> GetNestedValues(string section, string subSection)
-        {
-            return new List<KeyValuePair<string, string>>().AsReadOnly();
-        }
+        public IList<string> GetConfigRoots() => Enumerable.Empty<string>().ToList();
 
-        public IReadOnlyList<SettingValue> GetNestedSettingValues(string section, string subSection)
-        {
-            return new List<SettingValue>().AsReadOnly();
-        }
+        //TODO: Remove deprecated methods https://github.com/NuGet/Home/issues/7294
+#pragma warning disable CS0618 // Type or member is obsolete
 
-        public IReadOnlyList<string> GetAllSubsections(string section)
-        {
-            return new List<string>().AsReadOnly();
-        }
+        [Obsolete("GetValue(...) is deprecated. Please use GetSection(...) to interact with the setting values instead.")]
+        public string GetValue(string section, string key, bool isPath = false) => string.Empty;
 
-        public void SetValue(string section, string key, string value)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetValue)));
-        }
+        [Obsolete("GetAllSubsections(...) is deprecated. Please use GetSection(...) to interact with the setting values instead.")]
+        public IReadOnlyList<string> GetAllSubsections(string section) => new List<string>().AsReadOnly();
 
-        public void SetValues(string section, IReadOnlyList<SettingValue> values)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetValues)));
-        }
+        [Obsolete("GetSettingValues(...) is deprecated. Please use GetSection(...) to interact with the setting values instead.")]
+        public IList<SettingValue> GetSettingValues(string section, bool isPath = false) => new List<SettingValue>().AsReadOnly();
 
-        public void UpdateSections(string section, IReadOnlyList<SettingValue> values)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(UpdateSections)));
-        }
+        [Obsolete("GetNestedValues(...) is deprecated. Please use GetSection(...) to interact with the setting values instead.")]
+        public IList<KeyValuePair<string, string>> GetNestedValues(string section, string subSection) => new List<KeyValuePair<string, string>>().AsReadOnly();
 
-        public void SetNestedValues(string section, string key, IList<KeyValuePair<string, string>> values)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetNestedValues)));
-        }
+        [Obsolete("GetNestedSettingValues(...) is deprecated. Please use GetSection(...) to interact with the setting values instead.")]
+        public IReadOnlyList<SettingValue> GetNestedSettingValues(string section, string subSection) => new List<SettingValue>().AsReadOnly();
 
-        public void SetNestedSettingValues(string section, string subsection, IList<SettingValue> values)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetNestedSettingValues)));
-        }
+        [Obsolete("SetValue(...) is deprecated. Please use AddOrUpdate(...) to add an item to a section or interact directly with the SettingItem you want.")]
+        public void SetValue(string section, string key, string value) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetValue)));
 
-        public bool DeleteValue(string section, string key)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(DeleteValue)));
-        }
+        [Obsolete("SetValues(...) is deprecated. Please use AddOrUpdate(...) to add an item to a section or interact directly with the SettingItem you want.")]
+        public void SetValues(string section, IReadOnlyList<SettingValue> values) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetValues)));
 
-        public bool DeleteSection(string section)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(DeleteSection)));
-        }
+        [Obsolete("UpdateSections(...) is deprecated. Please use AddOrUpdate(...) to update an item in a section or interact directly with the SettingItem you want.")]
+        public void UpdateSections(string section, IReadOnlyList<SettingValue> values) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(UpdateSections)));
 
-        public void UpdateSubsections(string section, string subsection, IReadOnlyList<SettingValue> values)
-        {
-            throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(UpdateSubsections)));
-        }
+        [Obsolete("UpdateSubsections(...) is deprecated. Please use AddOrUpdate(...) to update an item in a section or interact directly with the SettingItem you want.")]
+        public void UpdateSubsections(string section, string subsection, IReadOnlyList<SettingValue> values) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(UpdateSubsections)));
+
+        [Obsolete("SetNestedValues(...) is deprecated. Please use AddOrUpdate(...) to update an item in a section or interact directly with the SettingItem you want.")]
+        public void SetNestedValues(string section, string subsection, IList<KeyValuePair<string, string>> values) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetNestedValues)));
+
+        [Obsolete("SetNestedSettingValues(...) is deprecated. Please use AddOrUpdate(...) to update an item in a section or interact directly with the SettingItem you want.")]
+        public void SetNestedSettingValues(string section, string subsection, IList<SettingValue> values) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(SetNestedSettingValues)));
+
+        [Obsolete("DeleteValue(...) is deprecated. Please use Remove(...) with the item you want to remove from the setttings.")]
+        public bool DeleteValue(string section, string key) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(DeleteValue)));
+
+        [Obsolete("DeleteSection(...) is deprecated,. Please use Remove(...) with all the items in the section you want to remove from the setttings.")]
+        public bool DeleteSection(string section) => throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, Resources.InvalidNullSettingsOperation, nameof(DeleteSection)));
+#pragma warning restore CS0618 // Type or member is obsolete
     }
 }

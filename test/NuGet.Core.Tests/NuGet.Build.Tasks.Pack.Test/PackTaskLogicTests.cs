@@ -488,6 +488,54 @@ namespace NuGet.Build.Tasks.Pack.Test
             }
         }
 
+        [PlatformTheory(Platform.Windows)]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void PackTaskLogic_SupportsNoDefaultExcludes(bool noDefaultExcludes)
+        {
+            // Arrange
+            using (var testDir = TestDirectory.Create())
+            {
+                var tc = new TestContext(testDir);
+
+                var metadata = new Dictionary<string, string>()
+                {
+                    {"BuildAction", "None"},
+                    {"PackageCopyToOutput", "true" },
+                    {"Pack", "true" }
+                };
+
+                var msbuildItem = tc.AddContentToProject("", ".prefercliruntime", "hello world", metadata);
+                tc.Request.PackageFiles = new MSBuildItem[] { msbuildItem };
+                tc.Request.ContentTargetFolders = new string[] { "content"};
+                tc.Request.NoDefaultExcludes = noDefaultExcludes;
+
+                // Act
+                tc.BuildPackage();
+
+                // Assert
+                Assert.True(File.Exists(tc.NuspecPath), "The intermediate .nuspec file is not in the expected place.");
+                Assert.True(File.Exists(tc.NupkgPath), "The output .nupkg file is not in the expected place.");
+                using (var nupkgReader = new PackageArchiveReader(tc.NupkgPath))
+                {
+                    var nuspecReader = nupkgReader.NuspecReader;
+
+
+                    // Validate the content items
+                    var contentItems = nupkgReader.GetFiles("content").ToList();
+                    if(noDefaultExcludes)
+                    {
+                        Assert.Equal(contentItems.Count, 1);
+                        Assert.Contains("content/.prefercliruntime", contentItems, StringComparer.Ordinal);
+                    }
+                    else
+                    {
+                        Assert.Equal(contentItems.Count, 0);
+                    }
+                }
+            }
+        }
+
         [Fact]
         public void PackTaskLogic_SupportsContentFiles_WithPackageFlatten()
         {
@@ -581,6 +629,7 @@ namespace NuGet.Build.Tasks.Pack.Test
                         {"TargetFramework", "net45" }
                     })},
                     Logger = new TestLogger(),
+                    SymbolPackageFormat = "symbols.nupkg",
                     FrameworkAssemblyReferences = new MSBuildItem[]{}
                 };
             }

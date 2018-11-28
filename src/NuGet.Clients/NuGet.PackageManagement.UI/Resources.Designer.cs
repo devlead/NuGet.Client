@@ -61,6 +61,96 @@ namespace NuGet.PackageManagement.UI {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Package icon.
+        /// </summary>
+        public static string Accessibility_PackageIcon {
+            get {
+                return ResourceManager.GetString("Accessibility_PackageIcon", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Package manager.
+        /// </summary>
+        public static string Accessibility_PackageManager {
+            get {
+                return ResourceManager.GetString("Accessibility_PackageManager", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Package metadata.
+        /// </summary>
+        public static string Accessibility_PackageMetadata {
+            get {
+                return ResourceManager.GetString("Accessibility_PackageMetadata", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Package details.
+        /// </summary>
+        public static string Accessibility_PackagesDetails {
+            get {
+                return ResourceManager.GetString("Accessibility_PackagesDetails", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Packages list.
+        /// </summary>
+        public static string Accessibility_PackagesList {
+            get {
+                return ResourceManager.GetString("Accessibility_PackagesList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Prefix reserved.
+        /// </summary>
+        public static string Accessibility_PrefixReserved {
+            get {
+                return ResourceManager.GetString("Accessibility_PrefixReserved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Promote all to top level dependencies.
+        /// </summary>
+        public static string Accessibility_PromoteAllToTopLevel {
+            get {
+                return ResourceManager.GetString("Accessibility_PromoteAllToTopLevel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Promote to a top level dependency.
+        /// </summary>
+        public static string Accessibility_PromoteToTopLevel {
+            get {
+                return ResourceManager.GetString("Accessibility_PromoteToTopLevel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use arrow keys to change the size of the sections.
+        /// </summary>
+        public static string Accessibility_ThumbHelp {
+            get {
+                return ResourceManager.GetString("Accessibility_ThumbHelp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Thumb.
+        /// </summary>
+        public static string Accessibility_ThumbName {
+            get {
+                return ResourceManager.GetString("Accessibility_ThumbName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Consolidate.
         /// </summary>
         public static string Action_Consolidate {
@@ -592,6 +682,15 @@ namespace NuGet.PackageManagement.UI {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Help icon.
+        /// </summary>
+        public static string ImageCaption_HelpIcon {
+            get {
+                return ResourceManager.GetString("ImageCaption_HelpIcon", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Action:.
         /// </summary>
         public static string Label_Action {
@@ -709,7 +808,7 @@ namespace NuGet.PackageManagement.UI {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Version(s) - {0}.
+        ///   Looks up a localized string similar to Versions - {0}.
         /// </summary>
         public static string Label_InstalledVersionsCount {
             get {
@@ -912,6 +1011,15 @@ namespace NuGet.PackageManagement.UI {
         public static string Label_Version {
             get {
                 return ResourceManager.GetString("Label_Version", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Loading license file....
+        /// </summary>
+        public static string LicenseFile_Loading {
+            get {
+                return ResourceManager.GetString("LicenseFile_Loading", resourceCulture);
             }
         }
         
@@ -2014,6 +2122,15 @@ namespace NuGet.PackageManagement.UI {
         public static string WindowTitle_LicenseAcceptance {
             get {
                 return ResourceManager.GetString("WindowTitle_LicenseAcceptance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} License.
+        /// </summary>
+        public static string WindowTitle_LicenseFileWindow {
+            get {
+                return ResourceManager.GetString("WindowTitle_LicenseFileWindow", resourceCulture);
             }
         }
         

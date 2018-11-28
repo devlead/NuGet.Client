@@ -22,6 +22,8 @@ using NuGet.Configuration;
 using NuGet.PackageManagement.VisualStudio;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.Packaging.PackageExtraction;
+using NuGet.Packaging.Signing;
 using NuGet.ProjectManagement;
 using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
@@ -73,6 +75,13 @@ namespace NuGet.PackageManagement.PowerShellCmdlets
             _commonOperations = ServiceLocator.GetInstance<ICommonOperations>();
             PackageRestoreManager = ServiceLocator.GetInstance<IPackageRestoreManager>();
             _deleteOnRestartManager = ServiceLocator.GetInstance<IDeleteOnRestartManager>();
+
+            var logger = new LoggerAdapter(this);
+            PackageExtractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv2,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                ClientPolicyContext.GetClientPolicy(ConfigSettings, logger),
+                logger);
 
             if (_commonOperations != null)
             {
@@ -248,9 +257,12 @@ namespace NuGet.PackageManagement.PowerShellCmdlets
 
                     using (var cacheContext = new SourceCacheContext())
                     {
+                        var logger = new LoggerAdapter(this);
+
                         var downloadContext = new PackageDownloadContext(cacheContext)
                         {
-                            ParentId = OperationId
+                            ParentId = OperationId,
+                            ClientPolicyContext = ClientPolicyContext.GetClientPolicy(ConfigSettings, logger)
                         };
 
                         var result = await PackageRestoreManager.RestoreMissingPackagesAsync(
@@ -610,7 +622,10 @@ namespace NuGet.PackageManagement.PowerShellCmdlets
         {
             var searchFilter = new SearchFilter(includePrerelease: includePrerelease);
             searchFilter.IncludeDelisted = false;
-            var packageFeed = new MultiSourcePackageFeed(PrimarySourceRepositories, logger: null);
+            var packageFeed = new MultiSourcePackageFeed(
+                PrimarySourceRepositories,
+                logger: null,
+                telemetryService: null);
             var searchTask = packageFeed.SearchAsync(searchString, searchFilter, Token);
 
             return PackageFeedEnumerator.Enumerate(

@@ -17,6 +17,9 @@ using NuGet.PackageManagement;
 using NuGet.PackageManagement.VisualStudio;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.Packaging.PackageExtraction;
+using NuGet.Packaging.Signing;
+using NuGet.ProjectManagement;
 using NuGet.ProjectManagement.Projects;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
@@ -36,6 +39,7 @@ namespace NuGet.VisualStudio
         private readonly ISourceRepositoryProvider _sourceProvider;
         private readonly VsPackageInstaller _installer;
         private readonly IVsProjectAdapterProvider _vsProjectAdapterProvider;
+        private readonly Configuration.ISettings _settings;
 
         public Action<string> InfoHandler { get; set; }
 
@@ -52,6 +56,7 @@ namespace NuGet.VisualStudio
             _sourceProvider = sourceProvider;
             _vsProjectAdapterProvider = vsProjectAdapterProvider;
             _installer = installer;
+            _settings = settings;
         }
 
         /// <summary>
@@ -148,6 +153,7 @@ namespace NuGet.VisualStudio
         /// their installation.
         /// </param>
         /// <param name="repositorySettings">The repository settings for the packages being installed.</param>
+        /// <param name="preferPackageReferenceFormat">Install packages to the project as PackageReference if the project type supports it</param>
         /// <param name="warningHandler">
         /// An action that accepts a warning message and presents it to the user, allowing
         /// execution to continue.
@@ -160,18 +166,30 @@ namespace NuGet.VisualStudio
             IVsPackageInstaller packageInstaller,
             EnvDTE.Project project,
             PreinstalledPackageConfiguration configuration,
+            bool preferPackageReferenceFormat,
             Action<string> warningHandler,
             Action<string> errorHandler)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            string repositoryPath = configuration.RepositoryPath;
+            var repositoryPath = configuration.RepositoryPath;
             var repositorySource = new Configuration.PackageSource(repositoryPath);
             var failedPackageErrors = new List<string>();
 
             // find the project
             var defaultProjectContext = new VSAPIProjectContext();
+            var logger = new LoggerAdapter(defaultProjectContext);
+            defaultProjectContext.PackageExtractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv2,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                ClientPolicyContext.GetClientPolicy(_settings, logger),
+                logger);
+
             var nuGetProject = await _solutionManager.GetOrCreateProjectAsync(project, defaultProjectContext);
+            if (preferPackageReferenceFormat && await NuGetProjectUpgradeUtility.IsNuGetProjectUpgradeableAsync(nuGetProject, project, needsAPackagesConfig: false))
+            {
+                nuGetProject = await _solutionManager.UpgradeProjectToPackageReferenceAsync(nuGetProject);
+            }
 
             // For BuildIntegratedNuGetProject, nuget will ignore preunzipped configuration.
             var buildIntegratedProject = nuGetProject as BuildIntegratedNuGetProject;
@@ -221,6 +239,12 @@ namespace NuGet.VisualStudio
                             var disableBindingRedirects = package.SkipAssemblyReferences;
 
                             var projectContext = new VSAPIProjectContext(package.SkipAssemblyReferences, disableBindingRedirects);
+                            var loggerAdapter = new LoggerAdapter(projectContext);
+                            projectContext.PackageExtractionContext = new PackageExtractionContext(
+                                PackageSaveMode.Defaultv2,
+                                PackageExtractionBehavior.XmlDocFileSaveMode,
+                                ClientPolicyContext.GetClientPolicy(_settings, loggerAdapter),
+                                loggerAdapter);
 
                             // This runs from the UI thread
                             await _installer.InstallInternalCoreAsync(
@@ -319,6 +343,14 @@ namespace NuGet.VisualStudio
             }
 
             VSAPIProjectContext context = new VSAPIProjectContext(skipAssemblyReferences: true, bindingRedirectsDisabled: true);
+            var logger = new LoggerAdapter(context);
+
+            context.PackageExtractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv2,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                ClientPolicyContext.GetClientPolicy(_settings, logger),
+                logger);
+
             WebSiteProjectSystem projectSystem = new WebSiteProjectSystem(_vsProjectAdapterProvider.CreateAdapterForFullyLoadedProject(project), context);
 
             foreach (var packageName in packageNames)
@@ -363,6 +395,13 @@ namespace NuGet.VisualStudio
         private void CopyNativeBinariesToBin(EnvDTE.Project project, string repositoryPath, IEnumerable<PreinstalledPackageInfo> packageInfos)
         {
             var context = new VSAPIProjectContext();
+            var logger = new LoggerAdapter(context);
+
+            context.PackageExtractionContext = new PackageExtractionContext(
+                PackageSaveMode.Defaultv2,
+                PackageExtractionBehavior.XmlDocFileSaveMode,
+                ClientPolicyContext.GetClientPolicy(_settings, logger),
+                logger);
             var projectSystem = new VsMSBuildProjectSystem(_vsProjectAdapterProvider.CreateAdapterForFullyLoadedProject(project), context);
 
             foreach (var packageInfo in packageInfos)

@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
@@ -153,7 +153,7 @@ namespace NuGet.PackageManagement.VisualStudio.Test
         [Theory]
         [InlineData("system", "3.0.0.0", true)]
         [InlineData("System", "4.0.0", true)]
-        [InlineData("System", "4.0.0.0", false)]
+        [InlineData("System", "4.0.0.0", true)]
         [InlineData("System", "5.0.0.0", false)]
         public void FrameworkAssemblyResolver_IsHigherAssemblyVersionInFramework(string simpleAssemblyName, string version, bool expectedResult)
         {
@@ -259,7 +259,7 @@ namespace NuGet.PackageManagement.VisualStudio.Test
         [Theory]
         [InlineData("System.Collections")]
         [InlineData("System.Runtime")]
-        public void FrameworkAssemblyResolver_IsHigherAssemblyVersionInFramework_DoesNotSupportFacadeAssemblies(string simpleAssemblyName)
+        public void FrameworkAssemblyResolver_IsHigherAssemblyVersionInFramework_SupportFacadeAssemblies(string simpleAssemblyName)
         {
             var actualResult = FrameworkAssemblyResolver.IsHigherAssemblyVersionInFramework(
                 simpleAssemblyName,
@@ -268,7 +268,7 @@ namespace NuGet.PackageManagement.VisualStudio.Test
                 frameworkName => new List<string>() { _fixture.Path },
                 _dictionary);
 
-            Assert.False(actualResult);
+            Assert.True(actualResult);
             Assert.Equal(1, _dictionary.Count);
         }
     }

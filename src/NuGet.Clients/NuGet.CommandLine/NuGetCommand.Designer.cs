@@ -6014,7 +6014,7 @@ namespace NuGet.CommandLine {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to &lt;all | http-cache | global-packages | temp&gt; [-clear | -list].
+        ///   Looks up a localized string similar to &lt;all | http-cache | global-packages | temp | plugins-cache&gt; [-clear | -list].
         /// </summary>
         internal static string LocalsCommandSummary {
             get {
@@ -6023,7 +6023,7 @@ namespace NuGet.CommandLine {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The NuGet configuration file. If not specified, file %AppData%\NuGet\NuGet.config is used as configuration file..
+        ///   Looks up a localized string similar to The NuGet configuration file. If specified, only the settings from this file will be used. If not specified, the hierarchy of configuration files from the current directory will be used. To learn more about NuGet configuration go to https://docs.microsoft.com/en-us/nuget/consume-packages/configuring-nuget-behavior..
         /// </summary>
         internal static string Option_ConfigFile {
             get {
@@ -7828,6 +7828,15 @@ namespace NuGet.CommandLine {
         internal static string PackageCommandSuffixDescription {
             get {
                 return ResourceManager.GetString("PackageCommandSuffixDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When creating a symbols package, allows to choose between the &apos;snupkg&apos; and &apos;symbols.nupkg&apos; format..
+        /// </summary>
+        internal static string PackageCommandSymbolPackageFormat {
+            get {
+                return ResourceManager.GetString("PackageCommandSymbolPackageFormat", resourceCulture);
             }
         }
         
@@ -12487,6 +12496,15 @@ namespace NuGet.CommandLine {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Make a source a trusted repository for repository signature verification..
+        /// </summary>
+        internal static string SourcesCommandTrustDescription {
+            get {
+                return ResourceManager.GetString("SourcesCommandTrustDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to &lt;List|Add|Remove|Enable|Disable|Update&gt; -Name [name] -Source [source].
         /// </summary>
         internal static string SourcesCommandUsageSummary {
@@ -13430,6 +13448,115 @@ namespace NuGet.CommandLine {
         internal static string SymbolApiKey {
             get {
                 return ResourceManager.GetString("SymbolApiKey", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set allowUntrustedRoot to true for the trusted signer&apos;s certificate to be added..
+        /// </summary>
+        internal static string TrustedSignersCommandAllowUntrustedRootDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandAllowUntrustedRootDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add the author signature of the package as a trusted author..
+        /// </summary>
+        internal static string TrustedSignersCommandAuthorDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandAuthorDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fingerprint of the certificate to trust..
+        /// </summary>
+        internal static string TrustedSignersCommandCertificateFingerprintDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandCertificateFingerprintDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Provides the ability to manage the list of trusted signers..
+        /// </summary>
+        internal static string TrustedSignersCommandDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hash algorithm used to calculate the certificate fingerprint. Defaults to SHA256..
+        /// </summary>
+        internal static string TrustedSignersCommandFingerprintAlgorithmDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandFingerprintAlgorithmDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Name of the trusted signer..
+        /// </summary>
+        internal static string TrustedSignersCommandNameDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandNameDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to List of owners allowed for a package signed with the trusted repository..
+        /// </summary>
+        internal static string TrustedSignersCommandOwnersDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandOwnersDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add the repository signature or countersignature of the package as a trusted repository..
+        /// </summary>
+        internal static string TrustedSignersCommandRepositoryDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandRepositoryDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Service index for a repository to be trusted..
+        /// </summary>
+        internal static string TrustedSignersCommandServiceIndexDescription {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandServiceIndexDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to nuget trusted-signers
+        ///
+        ///nuget trusted-signers Add -Name existingSource
+        ///
+        ///nuget trusted-signers Add -Name trustedRepo -ServiceIndex https://trustedRepo.test/v3ServiceIndex
+        ///
+        ///nuget trusted-signers Add -Name author1 -CertificateFingerprint CE40881FF5F0AD3E58965DA20A9F571EF1651A56933748E1BF1C99E537C4E039 -FingerprintAlgorithm SHA256
+        ///
+        ///nuget trusted-signers Add -Repository .\..\MyRepositorySignedPackage.nupkg -Name TrustedRepo
+        ///
+        ///nuget-trusted-signers Remove -Name TrustedRepo.
+        /// </summary>
+        internal static string TrustedSignersCommandUsageExamples {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandUsageExamples", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &lt;List|Add|Remove|Sync&gt; [options].
+        /// </summary>
+        internal static string TrustedSignersCommandUsageSummary {
+            get {
+                return ResourceManager.GetString("TrustedSignersCommandUsageSummary", resourceCulture);
             }
         }
         

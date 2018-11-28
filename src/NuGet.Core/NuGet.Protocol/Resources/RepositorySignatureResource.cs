@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -28,6 +29,16 @@ namespace NuGet.Protocol
 
             AllRepositorySigned = allRepositorySigned;
             RepositoryCertificateInfos = data.OfType<JObject>().Select(p => p.FromJToken<RepositoryCertificateInfo>());
+
+            foreach (var repositoryCertificateInfo in RepositoryCertificateInfos)
+            {
+                var validUri = Uri.TryCreate(repositoryCertificateInfo.ContentUrl, UriKind.Absolute, out var repositoryContentUrl);
+                if (!validUri || !string.Equals(repositoryContentUrl.Scheme, "https", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new FatalProtocolException(Strings.RepositoryContentUrlMustBeHttps);
+                }
+            }
+
             Source = source.PackageSource.Source;
         }
 

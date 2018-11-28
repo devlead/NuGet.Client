@@ -1,8 +1,9 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using System.Collections.Generic;
+using System;
 using FluentAssertions;
+using NuGet.Common;
 using NuGet.Packaging.Signing;
 using Xunit;
 
@@ -10,86 +11,180 @@ namespace NuGet.Packaging.Test
 {
     public class SignedPackageVerifierSettingsTests
     {
+        const string RevocationModeEnvVar = "NUGET_CERT_REVOCATION_MODE";
+
+        [Fact]
+        public void Constructor_WhenVerificationTargetIsUnrecognized_Throws()
+        {
+            var verificationTarget = (VerificationTarget)int.MaxValue;
+            var exception = Assert.Throws<ArgumentException>(() => new SignedPackageVerifierSettings(
+                allowUnsigned: false,
+                allowIllegal: false,
+                allowUntrusted: false,
+                allowIgnoreTimestamp: false,
+                allowMultipleTimestamps: false,
+                allowNoTimestamp: false,
+                allowUnknownRevocation: false,
+                reportUnknownRevocation: true,
+                verificationTarget: verificationTarget,
+                signaturePlacement: SignaturePlacement.Any,
+                repositoryCountersignatureVerificationBehavior: SignatureVerificationBehavior.IfExists,
+                revocationMode: RevocationMode.Online));
+
+            Assert.Equal("verificationTarget", exception.ParamName);
+            Assert.StartsWith($"The enum value '{verificationTarget}' is unrecognized.", exception.Message);
+        }
+
+        [Fact]
+        public void Constructor_WhenSignaturePlacementIsUnrecognized_Throws()
+        {
+            var signaturePlacement = (SignaturePlacement)int.MaxValue;
+            var exception = Assert.Throws<ArgumentException>(() => new SignedPackageVerifierSettings(
+                allowUnsigned: false,
+                allowIllegal: false,
+                allowUntrusted: false,
+                allowIgnoreTimestamp: false,
+                allowMultipleTimestamps: false,
+                allowNoTimestamp: false,
+                allowUnknownRevocation: false,
+                reportUnknownRevocation: true,
+                verificationTarget: VerificationTarget.All,
+                signaturePlacement: signaturePlacement,
+                repositoryCountersignatureVerificationBehavior: SignatureVerificationBehavior.IfExists,
+                revocationMode: RevocationMode.Online));
+
+            Assert.Equal("signaturePlacement", exception.ParamName);
+            Assert.StartsWith($"The enum value '{signaturePlacement}' is unrecognized.", exception.Message);
+        }
+
+        [Fact]
+        public void Constructor_WhenRepositoryCountersignatureVerificationBehaviorIsUnrecognized_Throws()
+        {
+            var repositoryCountersignatureVerificationBehavior = (SignatureVerificationBehavior)int.MaxValue;
+            var exception = Assert.Throws<ArgumentException>(() => new SignedPackageVerifierSettings(
+                allowUnsigned: false,
+                allowIllegal: false,
+                allowUntrusted: false,
+                allowIgnoreTimestamp: false,
+                allowMultipleTimestamps: false,
+                allowNoTimestamp: false,
+                allowUnknownRevocation: false,
+                reportUnknownRevocation: true,
+                verificationTarget: VerificationTarget.All,
+                signaturePlacement: SignaturePlacement.Any,
+                repositoryCountersignatureVerificationBehavior: repositoryCountersignatureVerificationBehavior,
+                revocationMode: RevocationMode.Online));
+
+            Assert.Equal("repositoryCountersignatureVerificationBehavior", exception.ParamName);
+            Assert.StartsWith($"The enum value '{repositoryCountersignatureVerificationBehavior}' is unrecognized.", exception.Message);
+        }
+
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void ConstructorWithoutLists_InitializesProperties(bool initialValue)
+        [InlineData(
+            VerificationTarget.Author,
+            SignaturePlacement.Countersignature,
+            SignatureVerificationBehavior.IfExists,
+            "verificationTarget",
+            "signaturePlacement")]
+        [InlineData(
+            VerificationTarget.All,
+            SignaturePlacement.Countersignature,
+            SignatureVerificationBehavior.IfExists,
+            "verificationTarget",
+            "signaturePlacement")]
+        [InlineData(
+            VerificationTarget.All,
+            SignaturePlacement.Any,
+            SignatureVerificationBehavior.Never,
+            "signaturePlacement",
+            "repositoryCountersignatureVerificationBehavior")]
+        [InlineData(
+            VerificationTarget.All,
+            SignaturePlacement.PrimarySignature,
+            SignatureVerificationBehavior.IfExists,
+            "signaturePlacement",
+            "repositoryCountersignatureVerificationBehavior")]
+        public void Constructor_WhenArgumentCombinationIsInvalid_Throws(
+            VerificationTarget verificationTarget,
+            SignaturePlacement signaturePlacement,
+            SignatureVerificationBehavior repositoryCountersignatureVerificationBehavior,
+            string parameterName1,
+            string parameterName2)
+        {
+            var exception = Assert.Throws<ArgumentException>(() => new SignedPackageVerifierSettings(
+                allowUnsigned: false,
+                allowIllegal: false,
+                allowUntrusted: false,
+                allowIgnoreTimestamp: false,
+                allowMultipleTimestamps: false,
+                allowNoTimestamp: false,
+                allowUnknownRevocation: false,
+                reportUnknownRevocation: true,
+                verificationTarget: verificationTarget,
+                signaturePlacement: signaturePlacement,
+                repositoryCountersignatureVerificationBehavior: repositoryCountersignatureVerificationBehavior,
+                revocationMode: RevocationMode.Online));
+
+            Assert.Equal(parameterName2, exception.ParamName);
+            Assert.StartsWith($"Invalid combination of arguments {parameterName1} and {parameterName2}.", exception.Message);
+        }
+
+        [Theory]
+        [InlineData(true, VerificationTarget.Author, SignaturePlacement.PrimarySignature, SignatureVerificationBehavior.Never, RevocationMode.Online)]
+        [InlineData(false, VerificationTarget.All, SignaturePlacement.Any, SignatureVerificationBehavior.IfExistsAndIsNecessary, RevocationMode.Offline)]
+        public void Constructor_InitializesProperties(
+            bool boolValue,
+            VerificationTarget verificationTarget,
+            SignaturePlacement signaturePlacement,
+            SignatureVerificationBehavior signatureVerificationBehavior,
+            RevocationMode revocationMode)
         {
             // Arrange & Act
             var settings = new SignedPackageVerifierSettings(
-                allowUnsigned: initialValue,
-                allowIllegal: initialValue,
-                allowUntrusted: initialValue,
-                allowIgnoreTimestamp: initialValue,
-                allowMultipleTimestamps: initialValue,
-                allowNoTimestamp: initialValue,
-                allowUnknownRevocation: initialValue,
-                allowNoRepositoryCertificateList: initialValue,
-                allowNoClientCertificateList: initialValue,
-                alwaysVerifyCountersignature: initialValue);
+                allowUnsigned: boolValue,
+                allowIllegal: boolValue,
+                allowUntrusted: boolValue,
+                allowIgnoreTimestamp: boolValue,
+                allowMultipleTimestamps: boolValue,
+                allowNoTimestamp: boolValue,
+                allowUnknownRevocation: boolValue,
+                reportUnknownRevocation: boolValue,
+                verificationTarget: verificationTarget,
+                signaturePlacement: signaturePlacement,
+                repositoryCountersignatureVerificationBehavior: signatureVerificationBehavior,
+                revocationMode: revocationMode);
 
             // Assert
-            settings.AllowUnsigned.Should().Be(initialValue);
-            settings.AllowIllegal.Should().Be(initialValue);
-            settings.AllowUntrusted.Should().Be(initialValue);
-            settings.AllowIgnoreTimestamp.Should().Be(initialValue);
-            settings.AllowMultipleTimestamps.Should().Be(initialValue);
-            settings.AllowNoTimestamp.Should().Be(initialValue);
-            settings.AllowUnknownRevocation.Should().Be(initialValue);
-            settings.AllowNoRepositoryCertificateList.Should().Be(initialValue);
-            settings.AllowNoClientCertificateList.Should().Be(initialValue);
-            settings.AlwaysVerifyCountersignature.Should().Be(initialValue);
+            settings.AllowUnsigned.Should().Be(boolValue);
+            settings.AllowIllegal.Should().Be(boolValue);
+            settings.AllowUntrusted.Should().Be(boolValue);
+            settings.AllowIgnoreTimestamp.Should().Be(boolValue);
+            settings.AllowMultipleTimestamps.Should().Be(boolValue);
+            settings.AllowNoTimestamp.Should().Be(boolValue);
+            settings.AllowUnknownRevocation.Should().Be(boolValue);
+            settings.ReportUnknownRevocation.Should().Be(boolValue);
+            settings.RepositoryCountersignatureVerificationBehavior.Should().Be(signatureVerificationBehavior);
+            settings.RevocationMode.Should().Be(revocationMode);
         }
 
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void ConstructorWithLists_InitializesProperties(bool initialValue)
+        [InlineData(null, RevocationMode.Online)]
+        [InlineData("", RevocationMode.Online)]
+        [InlineData("online", RevocationMode.Online)]
+        [InlineData("offline", RevocationMode.Offline)]
+        [InlineData("Offline", RevocationMode.Offline)]
+        public void GetDefault_InitializesProperties(string revocationModeEnvVar, RevocationMode expectedRevocationMode)
         {
             // Arrange
-            var repoList = new List<CertificateHashAllowListEntry>();
-            var clientList = new List<CertificateHashAllowListEntry>();
-
-            // Act
-            var settings = new SignedPackageVerifierSettings(
-                allowUnsigned: initialValue,
-                allowIllegal: initialValue,
-                allowUntrusted: initialValue,
-                allowIgnoreTimestamp: initialValue,
-                allowMultipleTimestamps: initialValue,
-                allowNoTimestamp: initialValue,
-                allowUnknownRevocation: initialValue,
-                allowNoRepositoryCertificateList: initialValue,
-                allowNoClientCertificateList: initialValue,
-                alwaysVerifyCountersignature: initialValue,
-                repoAllowListEntries: repoList,
-                clientAllowListEntries: clientList);
-
-            // Assert
-            settings.AllowUnsigned.Should().Be(initialValue);
-            settings.AllowIllegal.Should().Be(initialValue);
-            settings.AllowUntrusted.Should().Be(initialValue);
-            settings.AllowIgnoreTimestamp.Should().Be(initialValue);
-            settings.AllowMultipleTimestamps.Should().Be(initialValue);
-            settings.AllowNoTimestamp.Should().Be(initialValue);
-            settings.AllowUnknownRevocation.Should().Be(initialValue);
-            settings.AllowNoRepositoryCertificateList.Should().Be(initialValue);
-            settings.AllowNoClientCertificateList.Should().Be(initialValue);
-            settings.AlwaysVerifyCountersignature.Should().Be(initialValue);
-            settings.RepositoryCertificateList.Should().BeSameAs(repoList);
-            settings.ClientCertificateList.Should().BeSameAs(clientList);
-        }
-
-        [Fact]
-        public void GetDefault_InitializesProperties()
-        {
-            // Arrange
-            var repoList = new List<CertificateHashAllowListEntry>();
-            var clientList = new List<CertificateHashAllowListEntry>();
             var defaultValue = true;
 
+            if (revocationModeEnvVar != null)
+            {
+                Environment.SetEnvironmentVariable(RevocationModeEnvVar, revocationModeEnvVar);
+            }
+
             // Act
-            var settings = SignedPackageVerifierSettings.GetDefault(repoList, clientList);
+            var settings = SignedPackageVerifierSettings.GetDefault();
 
             // Assert
             settings.AllowUnsigned.Should().Be(defaultValue);
@@ -99,23 +194,33 @@ namespace NuGet.Packaging.Test
             settings.AllowMultipleTimestamps.Should().Be(defaultValue);
             settings.AllowNoTimestamp.Should().Be(defaultValue);
             settings.AllowUnknownRevocation.Should().Be(defaultValue);
-            settings.AllowNoRepositoryCertificateList.Should().Be(defaultValue);
-            settings.AllowNoClientCertificateList.Should().Be(defaultValue);
-            settings.AlwaysVerifyCountersignature.Should().Be(defaultValue);
-            settings.RepositoryCertificateList.Should().BeSameAs(repoList);
-            settings.ClientCertificateList.Should().BeSameAs(clientList);
+            settings.ReportUnknownRevocation.Should().Be(false);
+            settings.VerificationTarget.Should().Be(VerificationTarget.All);
+            settings.SignaturePlacement.Should().Be(SignaturePlacement.Any);
+            settings.RepositoryCountersignatureVerificationBehavior.Should().Be(SignatureVerificationBehavior.IfExistsAndIsNecessary);
+            settings.RevocationMode.Should().Be(expectedRevocationMode);
+
+            Environment.SetEnvironmentVariable(RevocationModeEnvVar, string.Empty);
         }
 
-        [Fact]
-        public void GetAcceptModeDefaultPolicy_InitializesProperties()
+        [Theory]
+        [InlineData(null, RevocationMode.Online)]
+        [InlineData("", RevocationMode.Online)]
+        [InlineData("online", RevocationMode.Online)]
+        [InlineData("offline", RevocationMode.Offline)]
+        [InlineData("Offline", RevocationMode.Offline)]
+        public void GetAcceptModeDefaultPolicy_InitializesProperties(string revocationModeEnvVar, RevocationMode expectedRevocationMode)
         {
             // Arrange
-            var repoList = new List<CertificateHashAllowListEntry>();
-            var clientList = new List<CertificateHashAllowListEntry>();
             var defaultValue = true;
 
+            if (revocationModeEnvVar != null)
+            {
+                Environment.SetEnvironmentVariable(RevocationModeEnvVar, revocationModeEnvVar);
+            }
+
             // Act
-            var settings = SignedPackageVerifierSettings.GetAcceptModeDefaultPolicy(repoList, clientList);
+            var settings = SignedPackageVerifierSettings.GetAcceptModeDefaultPolicy();
 
             // Assert
             settings.AllowUnsigned.Should().Be(defaultValue);
@@ -125,23 +230,31 @@ namespace NuGet.Packaging.Test
             settings.AllowMultipleTimestamps.Should().Be(defaultValue);
             settings.AllowNoTimestamp.Should().Be(defaultValue);
             settings.AllowUnknownRevocation.Should().Be(defaultValue);
-            settings.AllowNoRepositoryCertificateList.Should().Be(defaultValue);
-            settings.AllowNoClientCertificateList.Should().Be(defaultValue);
-            settings.AlwaysVerifyCountersignature.Should().Be(false);
-            settings.RepositoryCertificateList.Should().BeSameAs(repoList);
-            settings.ClientCertificateList.Should().BeSameAs(clientList);
+            settings.ReportUnknownRevocation.Should().Be(false);
+            settings.VerificationTarget.Should().Be(VerificationTarget.All);
+            settings.SignaturePlacement.Should().Be(SignaturePlacement.Any);
+            settings.RepositoryCountersignatureVerificationBehavior.Should().Be(SignatureVerificationBehavior.IfExistsAndIsNecessary);
+            settings.RevocationMode.Should().Be(expectedRevocationMode);
+
+            Environment.SetEnvironmentVariable(RevocationModeEnvVar, string.Empty);
         }
 
-
-        [Fact]
-        public void GetRequireModeDefaultPolicy_InitializesProperties()
+        [Theory]
+        [InlineData(null, RevocationMode.Online)]
+        [InlineData("", RevocationMode.Online)]
+        [InlineData("online", RevocationMode.Online)]
+        [InlineData("offline", RevocationMode.Offline)]
+        [InlineData("Offline", RevocationMode.Offline)]
+        public void GetRequireModeDefaultPolicy_InitializesProperties(string revocationModeEnvVar, RevocationMode expectedRevocationMode)
         {
             // Arrange
-            var repoList = new List<CertificateHashAllowListEntry>();
-            var clientList = new List<CertificateHashAllowListEntry>();
+            if (revocationModeEnvVar != null)
+            {
+                Environment.SetEnvironmentVariable(RevocationModeEnvVar, revocationModeEnvVar);
+            }
 
             // Act
-            var settings = SignedPackageVerifierSettings.GetRequireModeDefaultPolicy(repoList, clientList);
+            var settings = SignedPackageVerifierSettings.GetRequireModeDefaultPolicy();
 
             // Assert
             settings.AllowUnsigned.Should().Be(false);
@@ -151,22 +264,31 @@ namespace NuGet.Packaging.Test
             settings.AllowMultipleTimestamps.Should().Be(true);
             settings.AllowNoTimestamp.Should().Be(true);
             settings.AllowUnknownRevocation.Should().Be(true);
-            settings.AllowNoRepositoryCertificateList.Should().Be(false);
-            settings.AllowNoClientCertificateList.Should().Be(false);
-            settings.AlwaysVerifyCountersignature.Should().Be(false);
-            settings.RepositoryCertificateList.Should().BeSameAs(repoList);
-            settings.ClientCertificateList.Should().BeSameAs(clientList);
+            settings.ReportUnknownRevocation.Should().Be(true);
+            settings.VerificationTarget.Should().Be(VerificationTarget.All);
+            settings.SignaturePlacement.Should().Be(SignaturePlacement.Any);
+            settings.RepositoryCountersignatureVerificationBehavior.Should().Be(SignatureVerificationBehavior.IfExistsAndIsNecessary);
+            settings.RevocationMode.Should().Be(expectedRevocationMode);
+
+            Environment.SetEnvironmentVariable(RevocationModeEnvVar, string.Empty);
         }
 
-        [Fact]
-        public void GetVerifyCommandDefaultPolicy_InitializesProperties()
+        [Theory]
+        [InlineData(null, RevocationMode.Online)]
+        [InlineData("", RevocationMode.Online)]
+        [InlineData("online", RevocationMode.Online)]
+        [InlineData("offline", RevocationMode.Offline)]
+        [InlineData("Offline", RevocationMode.Offline)]
+        public void GetVerifyCommandDefaultPolicy_InitializesProperties(string revocationModeEnvVar, RevocationMode expectedRevocationMode)
         {
             // Arrange
-            var repoList = new List<CertificateHashAllowListEntry>();
-            var clientList = new List<CertificateHashAllowListEntry>();
+            if (revocationModeEnvVar != null)
+            {
+                Environment.SetEnvironmentVariable(RevocationModeEnvVar, revocationModeEnvVar);
+            }
 
             // Act
-            var settings = SignedPackageVerifierSettings.GetVerifyCommandDefaultPolicy(repoList, clientList);
+            var settings = SignedPackageVerifierSettings.GetVerifyCommandDefaultPolicy();
 
             // Assert
             settings.AllowUnsigned.Should().Be(false);
@@ -176,11 +298,13 @@ namespace NuGet.Packaging.Test
             settings.AllowMultipleTimestamps.Should().Be(true);
             settings.AllowNoTimestamp.Should().Be(true);
             settings.AllowUnknownRevocation.Should().Be(true);
-            settings.AllowNoRepositoryCertificateList.Should().Be(true);
-            settings.AllowNoClientCertificateList.Should().Be(true);
-            settings.AlwaysVerifyCountersignature.Should().Be(true);
-            settings.RepositoryCertificateList.Should().BeSameAs(repoList);
-            settings.ClientCertificateList.Should().BeSameAs(clientList);
+            settings.ReportUnknownRevocation.Should().Be(true);
+            settings.VerificationTarget.Should().Be(VerificationTarget.All);
+            settings.SignaturePlacement.Should().Be(SignaturePlacement.Any);
+            settings.RepositoryCountersignatureVerificationBehavior.Should().Be(SignatureVerificationBehavior.IfExists);
+            settings.RevocationMode.Should().Be(expectedRevocationMode);
+
+            Environment.SetEnvironmentVariable(RevocationModeEnvVar, string.Empty);
         }
     }
 }

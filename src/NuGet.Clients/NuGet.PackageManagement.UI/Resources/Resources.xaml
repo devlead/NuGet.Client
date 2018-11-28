@@ -56,6 +56,10 @@
     x:Key="IconUrlToImageCacheConverter"/>
   <nuget:RadioBoolToIntConverter
     x:Key="RadioBoolToIntConverter" />
+  <nuget:SubstractionConverter
+    x:Key="SubstractionConverter" />
+  <nuget:AdditionConverter
+    x:Key="AdditionConverter" />
 
   <!-- Default styles -->
   <Style x:Key="ControlsFocusVisualStyle" TargetType="{x:Type Control}">
@@ -605,8 +609,8 @@
                              FontFamily="{TemplateBinding FontFamily}"
                              FontWeight="{TemplateBinding FontWeight}"
                              TextWrapping="{TemplateBinding TextWrapping}"
-                             Padding="0,0,0,0"
-                             />
+                             TextTrimming="CharacterEllipsis"
+                             Padding="0,0,0,0" />
             </ControlTemplate>
           </Setter.Value>
         </Setter>

@@ -268,6 +268,11 @@ namespace NuGet.Protocol.Plugins
                 return Enumerable.Empty<string>();
             }
 
+            // Normalized destination path 
+            var normalizedDestination = NormalizeDirectoryPath(destination);
+
+            ValidatePackageEntries(normalizedDestination, packageFiles, _packageIdentity);
+
             var packageId = _packageIdentity.Id;
             var packageVersion = _packageIdentity.Version.ToNormalizedString();
             var request = new CopyFilesInPackageRequest(
@@ -1142,6 +1147,22 @@ namespace NuGet.Protocol.Plugins
         public override Task<byte[]> GetArchiveHashAsync(HashAlgorithmName hashAlgorithm, CancellationToken token)
         {
             throw new NotImplementedException();
+        }
+
+        public override string GetContentHashForSignedPackage(CancellationToken token)
+        {
+            // Plugin Download doesn't support signed packages so simply return null.
+            return null;
+        }
+
+        public override bool CanVerifySignedPackages(SignedPackageVerifierSettings verifierSettings)
+        {
+            if (!verifierSettings.AllowUnsigned)
+            {
+                throw new SignatureException(NuGetLogCode.NU3041, Strings.Plugin_DownloadNotSupportedSinceUnsignedNotAllowed);
+            }
+
+            return false;
         }
 
         private sealed class FileStreamCreator : IDisposable

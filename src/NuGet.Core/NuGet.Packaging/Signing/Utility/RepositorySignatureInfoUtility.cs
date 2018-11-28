@@ -31,66 +31,51 @@ namespace NuGet.Packaging.Signing
             }
             else
             {
-                var repositoryAllowList = GetRepositoryAllowList(repoSignatureInfo.RepositoryCertificateInfos);
-
                 // Allow unsigned only if the common settings allow it and repository does not have all packages signed
                 var allowUnsigned = fallbackSettings.AllowUnsigned && !repoSignatureInfo.AllRepositorySigned;
 
-                // Allow an empty repository certificate list only if the repository does not have all packages signed
-                var allowNoRepositoryCertificateList = !repoSignatureInfo.AllRepositorySigned;
+                // Allow untrusted only if the common settings allow it and repository does not have all packages signed
+                var allowUntrusted = fallbackSettings.AllowUntrusted && !repoSignatureInfo.AllRepositorySigned;
 
                 return new SignedPackageVerifierSettings(
                     allowUnsigned,
                     fallbackSettings.AllowIllegal,
-                    fallbackSettings.AllowUntrusted,
+                    allowUntrusted,
                     fallbackSettings.AllowIgnoreTimestamp,
                     fallbackSettings.AllowMultipleTimestamps,
                     fallbackSettings.AllowNoTimestamp,
                     fallbackSettings.AllowUnknownRevocation,
-                    allowNoRepositoryCertificateList,
-                    fallbackSettings.AllowNoClientCertificateList,
-                    fallbackSettings.AlwaysVerifyCountersignature,
-                    repositoryAllowList?.AsReadOnly(),
-                    fallbackSettings.ClientCertificateList);
+                    fallbackSettings.ReportUnknownRevocation,
+                    fallbackSettings.VerificationTarget,
+                    fallbackSettings.SignaturePlacement,
+                    fallbackSettings.RepositoryCountersignatureVerificationBehavior,
+                    fallbackSettings.RevocationMode);
             }
         }
 
-        private static List<CertificateHashAllowListEntry> GetRepositoryAllowList(IEnumerable<IRepositoryCertificateInfo> repositoryCertificateInfos)
+        public static IReadOnlyCollection<CertificateHashAllowListEntry> GetRepositoryAllowList(IEnumerable<IRepositoryCertificateInfo> repositoryCertificateInfos)
         {
-            List<CertificateHashAllowListEntry> repositoryAllowList = null;
+            HashSet<CertificateHashAllowListEntry> repositoryAllowedCertificates = null;
 
             if (repositoryCertificateInfos != null)
             {
-                repositoryAllowList = new List<CertificateHashAllowListEntry>();
+                repositoryAllowedCertificates = new HashSet<CertificateHashAllowListEntry>();
 
                 foreach (var certInfo in repositoryCertificateInfos)
                 {
-                    var verificationTarget = VerificationTarget.Repository;
-                    var signaturePlacement = SignaturePlacement.PrimarySignature | SignaturePlacement.Countersignature;
-
                     foreach (var hashAlgorithm in SigningSpecifications.V1.AllowedHashAlgorithms)
                     {
-                        AddCertificateFingerprintIntoAllowList(verificationTarget, signaturePlacement, hashAlgorithm, certInfo, repositoryAllowList);
+                        var fingerprint = certInfo.Fingerprints[hashAlgorithm.ConvertToOidString()];
+
+                        if (!string.IsNullOrEmpty(fingerprint))
+                        {
+                            repositoryAllowedCertificates.Add(new CertificateHashAllowListEntry(VerificationTarget.Repository, SignaturePlacement.Any, fingerprint, hashAlgorithm));
+                        }
                     }
                 }
             }
 
-            return repositoryAllowList;
-        }
-
-        private static void AddCertificateFingerprintIntoAllowList(
-            VerificationTarget target,
-            SignaturePlacement placement,
-            HashAlgorithmName algorithm,
-            IRepositoryCertificateInfo certInfo,
-            List<CertificateHashAllowListEntry> allowList)
-        {
-            var fingerprint = certInfo.Fingerprints[algorithm.ConvertToOidString()];
-
-            if (!string.IsNullOrEmpty(fingerprint))
-            {
-                allowList.Add(new CertificateHashAllowListEntry(target, placement, fingerprint, algorithm));
-            }
+            return repositoryAllowedCertificates;
         }
     }
 }

@@ -4,7 +4,7 @@
 using FluentAssertions;
 using Xunit;
 
-namespace NuGet.Configuration
+namespace NuGet.Configuration.Test
 {
     public class PackageSourceTests
     {
@@ -35,6 +35,19 @@ namespace NuGet.Configuration
             result.Credentials.Source.ShouldBeEquivalentTo(source.Credentials.Source);
             result.Credentials.Username.ShouldBeEquivalentTo(source.Credentials.Username);
             result.Credentials.IsPasswordClearText.ShouldBeEquivalentTo(source.Credentials.IsPasswordClearText);
+        }
+
+        [Fact]
+        public void AsSourceItem_WorksCorrectly()
+        {
+            var source = new PackageSource("Source", "SourceName", isEnabled: false)
+            {
+                ProtocolVersion = 43
+            };
+
+            var expectedItem = new SourceItem("SourceName", "Source", "43");
+
+            SettingsTestUtils.DeepEquals(source.AsSourceItem(), expectedItem).Should().BeTrue();
         }
     }
 }

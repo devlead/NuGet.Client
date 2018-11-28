@@ -160,6 +160,24 @@ namespace NuGet.Test.Utility
             }
         }
 
+        public string NuGetLockFileOutputPath
+        {
+            get
+            {
+                switch (Type)
+                {
+                    case ProjectStyle.PackageReference:
+                        if (Properties.ContainsKey("NuGetLockFilePath"))
+                        {
+                            return Properties["NuGetLockFilePath"];
+                        }
+                        return Path.Combine(Path.GetDirectoryName(ProjectPath), "packages.lock.json");
+                    default:
+                        return null;
+                }
+            }
+        }
+
         public string TargetsOutput
         {
             get
@@ -227,7 +245,7 @@ namespace NuGet.Test.Utility
                 _packageSpec.RestoreMetadata.ProjectName = ProjectName;
                 _packageSpec.RestoreMetadata.ProjectPath = ProjectPath;
                 _packageSpec.RestoreMetadata.ProjectStyle = Type;
-                _packageSpec.RestoreMetadata.OutputPath = AssetsFileOutputPath;
+                _packageSpec.RestoreMetadata.OutputPath = OutputPath;
                 _packageSpec.RestoreMetadata.OriginalTargetFrameworks = OriginalFrameworkStrings;
                 _packageSpec.RestoreMetadata.TargetFrameworks = Frameworks
                     .Select(f => new ProjectRestoreMetadataFrameworkInfo(f.Framework))

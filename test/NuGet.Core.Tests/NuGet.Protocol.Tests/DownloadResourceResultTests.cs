@@ -228,6 +228,11 @@ namespace NuGet.Protocol.Tests
                 throw new NotImplementedException();
             }
 
+            public override string GetContentHashForSignedPackage(CancellationToken token)
+            {
+                throw new NotImplementedException();
+            }
+
             public override Task<byte[]> GetArchiveHashAsync(HashAlgorithmName hashAlgorithm, CancellationToken token)
             {
                 throw new NotImplementedException();
@@ -261,6 +266,11 @@ namespace NuGet.Protocol.Tests
             public override Task ValidateIntegrityAsync(SignatureContent signatureContent, CancellationToken token)
             {
                 throw new NotImplementedException();
+            }
+
+            public override bool CanVerifySignedPackages(SignedPackageVerifierSettings verifierSettings)
+            {
+                return false;
             }
 
             protected override void Dispose(bool disposing)

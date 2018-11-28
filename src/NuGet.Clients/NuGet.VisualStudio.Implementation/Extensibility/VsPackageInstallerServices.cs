@@ -14,6 +14,8 @@ using NuGet.Configuration;
 using NuGet.PackageManagement;
 using NuGet.PackageManagement.VisualStudio;
 using NuGet.Packaging;
+using NuGet.Packaging.PackageExtraction;
+using NuGet.Packaging.Signing;
 using NuGet.ProjectManagement;
 using NuGet.ProjectManagement.Projects;
 using NuGet.ProjectModel;
@@ -135,9 +137,17 @@ namespace NuGet.VisualStudio
             {
                 InitializePackageManagerAndPackageFolderPath();
 
+                var projectContext = new VSAPIProjectContext();
+                var logger = new LoggerAdapter(projectContext);
+                projectContext.PackageExtractionContext = new PackageExtractionContext(
+                    PackageSaveMode.Defaultv2,
+                    PackageExtractionBehavior.XmlDocFileSaveMode,
+                    ClientPolicyContext.GetClientPolicy(_settings, logger),
+                    logger);
+
                 var nuGetProject = await _solutionManager.GetOrCreateProjectAsync(
                                     project,
-                                    new VSAPIProjectContext());
+                                    projectContext);
 
                 var installedPackages = await nuGetProject.GetInstalledPackagesAsync(CancellationToken.None);
                 packages.AddRange(installedPackages);
@@ -162,9 +172,17 @@ namespace NuGet.VisualStudio
                     {
                         InitializePackageManagerAndPackageFolderPath();
 
+                        var projectContext = new VSAPIProjectContext();
+                        var logger = new LoggerAdapter(projectContext);
+                        projectContext.PackageExtractionContext = new PackageExtractionContext(
+                            PackageSaveMode.Defaultv2,
+                            PackageExtractionBehavior.XmlDocFileSaveMode,
+                            ClientPolicyContext.GetClientPolicy(_settings, logger),
+                            logger);
+
                         var nuGetProject = await _solutionManager.GetOrCreateProjectAsync(
                                             project,
-                                            new VSAPIProjectContext());
+                                            projectContext);
 
                         if (nuGetProject != null)
                         {
@@ -179,6 +197,13 @@ namespace NuGet.VisualStudio
 
                             foreach (var package in installedPackages)
                             {
+                                if (!package.PackageIdentity.HasVersion)
+                                {
+                                    // Currently we are not supporting floating versions 
+                                    // because of that we will skip this package so that it doesn't throw ArgumentNullException
+                                    continue;
+                                }
+
                                 string installPath;
                                 if (buildIntegratedProject != null)
                                 {

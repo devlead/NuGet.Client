@@ -1,3 +1,6 @@
+// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -1996,9 +1999,10 @@ namespace NuGet.CommandLine.Test
                 // Assert
                 Assert.True(File.Exists(assetsPath));
                 Assert.True(File.Exists(cachePath));
-                // This is a more complex scenario, since when we dedup 2.0.0 and 2.0.* we only look for 2.0.*...if 2.0.0 package exists, the 2.0.* would resolve to 2.0.0 so both cases would be covered
-                // The issue is ofc when you have 2.5 package in your local, and a package with 2.0.0 was added remotely. Then we re-download
-                Assert.Contains($"The restore inputs for 'z-netcoreapp1.0-[2.0.*, )' have not changed. No further actions are required to complete the restore.", r2.Item2);
+                
+                // This is expected, because despite the fact that both projects resolve to the same tool, the version range they request is different so they will keep overwriting each other
+                // Basically, it is impossible for both tools to no-op.
+                Assert.Contains($"Writing tool lock file to disk", r2.Item2);
             }
         }
 
@@ -2090,15 +2094,14 @@ namespace NuGet.CommandLine.Test
 
                 // Act
                 var r2 = Util.RestoreSolution(pathContext);
+
                 // Assert
                 Assert.True(File.Exists(assetsPath));
                 Assert.True(File.Exists(cachePath));
-                // This is a more complex scenario, since when we dedup 2.0.0 and 2.0.* we only look for 2.0.*...if 2.0.0 package exists, the 2.0.* would resolve to 2.0.0 so both cases would be covered
-                // The issue is ofc when you have 2.5 package in your local, and a package with 2.0.0 was added remotely. Then we won't redownload
-                Assert.False(File.Exists(assetsPath20));
-                Assert.False(File.Exists(cachePath20));
-                Assert.Contains($"The restore inputs for 'z-netcoreapp1.0-[2.0.*, )' have not changed. No further actions are required to complete the restore.", r2.Item2);
-                r = Util.RestoreSolution(pathContext);
+
+                Assert.True(File.Exists(assetsPath20));
+                Assert.True(File.Exists(cachePath20));
+
             }
         }
 
@@ -4811,6 +4814,97 @@ namespace NuGet.CommandLine.Test
         }
 
         [Fact]
+        public void RestoreNetCore_AssetTargetFallbackWithProjectReference_VerifyFallbackToNet46Assets()
+        {
+            // Arrange
+            using (var pathContext = new SimpleTestPathContext())
+            {
+                // Set up solution, project, and packages
+                var solution = new SimpleTestSolutionContext(pathContext.SolutionRoot);
+
+                var netcoreapp2 = NuGetFramework.Parse("netcoreapp2.0");
+                var ne461 = NuGetFramework.Parse("net461");
+
+                var projectA = SimpleTestProjectContext.CreateNETCore(
+                    "a",
+                    pathContext.SolutionRoot,
+                    netcoreapp2);
+                projectA.Properties.Add("AssetTargetFallback", "net461");
+                projectA.Properties.Add("RuntimeIdentifiers", "win10");
+
+                var projectB = SimpleTestProjectContext.CreateNETCore(
+                    "b",
+                    pathContext.SolutionRoot,
+                    ne461);
+                projectA.AddProjectToAllFrameworks(projectB);
+
+                solution.Projects.Add(projectA);
+                solution.Projects.Add(projectB);
+                solution.Create(pathContext.SolutionRoot);
+
+                // Act
+                var r = Util.RestoreSolution(pathContext);
+
+                // Assert
+                r.Success.Should().BeTrue();
+                foreach (var graph in projectA.AssetsFile.Targets)
+                {
+                    var lib = graph.GetTargetLibrary("b");
+
+                    lib.CompileTimeAssemblies.Select(e => e.Path)
+                        .ShouldBeEquivalentTo(new[] { "bin/placeholder/b.dll" });
+
+                    lib.RuntimeAssemblies.Select(e => e.Path)
+                        .ShouldBeEquivalentTo(new[] { "bin/placeholder/b.dll" });
+
+                    lib.BuildMultiTargeting.Should().BeEmpty();
+                    lib.Build.Should().BeEmpty();
+                    lib.ContentFiles.Should().BeEmpty();
+                    lib.ResourceAssemblies.Should().BeEmpty();
+                    // Native will contain a.dll for RID targets
+                }
+            }
+        }
+
+        [Fact]
+        public void RestoreNetCore_AssetTargetFallbackWithProjectReference_VerifyNoFallbackToNet46Assets()
+        {
+            // Arrange
+            using (var pathContext = new SimpleTestPathContext())
+            {
+                // Set up solution, project, and packages
+                var solution = new SimpleTestSolutionContext(pathContext.SolutionRoot);
+
+                var netcoreapp2 = NuGetFramework.Parse("netcoreapp2.0");
+                var ne461 = NuGetFramework.Parse("net461");
+
+                var projectA = SimpleTestProjectContext.CreateNETCore(
+                    "a",
+                    pathContext.SolutionRoot,
+                    netcoreapp2);
+                projectA.Properties.Add("AssetTargetFallback", "net45");
+                projectA.Properties.Add("RuntimeIdentifiers", "win10");
+
+                var projectB = SimpleTestProjectContext.CreateNETCore(
+                    "b",
+                    pathContext.SolutionRoot,
+                    ne461);
+                projectA.AddProjectToAllFrameworks(projectB);
+
+                solution.Projects.Add(projectA);
+                solution.Projects.Add(projectB);
+                solution.Create(pathContext.SolutionRoot);
+
+                // Act
+                var r = Util.RestoreSolution(pathContext, expectedExitCode: 1);
+
+                // Assert
+                r.Success.Should().BeFalse();
+                r.AllOutput.Should().Contain("NU1201");
+            }
+        }
+
+        [Fact]
         public async Task RestoreNetCore_BothAssetTargetFallbackPackageTargetFallbackVerifyErrorAsync()
         {
             // Arrange
@@ -5413,6 +5507,72 @@ namespace NuGet.CommandLine.Test
                 Directory.GetDirectories(pathContext.UserPackagesFolder).Should().BeEmpty();
             }
         }
+        // The scenario here is 2 different projects are setting RestoreSources, and the caching of the sources takes this into consideration
+        [Fact]
+        public async Task RestoreNetCore_VerifySourcesResolvedCorrectlyForMultipleProjectsAsync()
+        {
+            // Arrange
+            using (var pathContext = new SimpleTestPathContext())
+            {
+                // Set up solution, project, and packages
+                var solution = new SimpleTestSolutionContext(pathContext.SolutionRoot);
+                var netcoreapp2 = NuGetFramework.Parse("netcoreapp2.0");
+
+                var packageX = new SimpleTestPackageContext()
+                {
+                    Id = "x",
+                    Version = "1.0.0"
+                };
+
+                var packageY = new SimpleTestPackageContext()
+                {
+                    Id = "y",
+                    Version = "1.0.0"
+                };
+
+                var source1 = Path.Combine(pathContext.SolutionRoot, "source1");
+                var source2 = Path.Combine(pathContext.SolutionRoot, "source2");
+
+                // X is only in source1
+                await SimpleTestPackageUtility.CreateFolderFeedV3Async(
+                    source1,
+                    PackageSaveMode.Defaultv3,
+                    packageX);
+
+                // Y is only in source2
+                await SimpleTestPackageUtility.CreateFolderFeedV3Async(
+                    source2,
+                    PackageSaveMode.Defaultv3,
+                    packageY);
+
+                var projectA = SimpleTestProjectContext.CreateNETCore(
+                    "a",
+                    pathContext.SolutionRoot,
+                    netcoreapp2);
+
+                var projectB = SimpleTestProjectContext.CreateNETCore(
+                    "b",
+                    pathContext.SolutionRoot,
+                    netcoreapp2);
+
+                projectA.Properties.Add("RestoreSources", source1);
+                projectB.Properties.Add("RestoreSources", source2);
+
+                projectA.AddPackageToAllFrameworks(packageX);
+                projectB.AddPackageToAllFrameworks(packageY);
+
+
+                solution.Projects.Add(projectB);
+                solution.Projects.Add(projectA);
+                solution.Create(pathContext.SolutionRoot);
+
+                // Act
+                var r = Util.RestoreSolution(pathContext);
+
+                // Assert
+                r.Success.Should().BeTrue();
+            }
+        }
 
         [Fact]
         public async Task RestoreNetCore_VerifySourcesResolvedAgainstProjectPropertyAsync()
@@ -5622,6 +5782,96 @@ namespace NuGet.CommandLine.Test
             }
         }
 
+
+        [Fact]
+        public async Task RestoreNetCore_VerifyOrderOfConfigsAsync()
+        {
+            using (var pathContext = new SimpleTestPathContext())
+            {
+                // Set up solution, project, and packages
+                var solution = new SimpleTestSolutionContext(pathContext.SolutionRoot);
+
+                var projectA = SimpleTestProjectContext.CreateNETCore(
+                    "a",
+                    pathContext.SolutionRoot,
+                    NuGetFramework.Parse("net45"));
+
+                var packageX = new SimpleTestPackageContext()
+                {
+                    Id = "x",
+                    Version = "1.0.0"
+                };
+
+                projectA.AddPackageToAllFrameworks(packageX);
+
+                solution.Projects.Add(projectA);
+                solution.Create(pathContext.SolutionRoot);
+
+                await SimpleTestPackageUtility.CreateFolderFeedV3Async(
+                    pathContext.PackageSource,
+                    PackageSaveMode.Defaultv3,
+                    packageX);
+
+                // create a config file, no disabled sources
+                var projectDir = Path.GetDirectoryName(projectA.ProjectPath);
+
+                var configPath = Path.Combine(pathContext.SolutionRoot, "NuGet.Config");
+
+                var doc = new XDocument();
+                var configuration = new XElement(XName.Get("configuration"));
+                doc.Add(configuration);
+
+                var packageSources = new XElement(XName.Get("packageSources"));
+                configuration.Add(packageSources);
+
+                packageSources.Add(new XElement(XName.Get("clear")));
+
+                var localSource = new XElement(XName.Get("add"));
+                localSource.Add(new XAttribute(XName.Get("key"), "localSource"));
+                localSource.Add(new XAttribute(XName.Get("value"), pathContext.PackageSource));
+                packageSources.Add(localSource);
+
+                File.WriteAllText(configPath, doc.ToString());
+
+                var solutionParent = Directory.GetParent(pathContext.SolutionRoot);
+                var configPath2 = Path.Combine(solutionParent.FullName, "NuGet.Config");
+
+                var doc2 = new XDocument();
+                var configuration2 = new XElement(XName.Get("configuration"));
+                doc2.Add(configuration2);
+
+                var packageSources2 = new XElement(XName.Get("packageSources"));
+                configuration2.Add(packageSources2);
+
+                packageSources2.Add(new XElement(XName.Get("clear")));
+
+                var brokenSource = new XElement(XName.Get("add"));
+                brokenSource.Add(new XAttribute(XName.Get("key"), "brokenLocalSource"));
+                brokenSource.Add(new XAttribute(XName.Get("value"), pathContext.PackageSource + "brokenLocalSource"));
+                packageSources2.Add(brokenSource);
+
+                // Disable that config
+                var disabledPackageSources = new XElement(XName.Get("disabledPackageSources"));
+                var disabledBrokenSource = new XElement(XName.Get("add"));
+                disabledBrokenSource.Add(new XAttribute(XName.Get("key"), "brokenLocalSource"));
+                disabledBrokenSource.Add(new XAttribute(XName.Get("value"), "true"));
+                disabledPackageSources.Add(disabledBrokenSource);
+
+                configuration2.Add(disabledPackageSources);
+
+                File.WriteAllText(configPath2, doc2.ToString());
+
+                // Act 
+                var r2 = Util.RestoreSolution(pathContext);
+
+                // Assert
+                r2.Success.Should().BeTrue();
+
+                // Configs closer to the user should be first
+                Regex.Replace(r2.AllOutput, @"\s", "").Should().Contain($"NuGetConfigfilesused:{configPath}{configPath2}");
+            }
+        }
+
         [Fact]
         public async Task RestoreNetCore_VerifyConfigFileWithRelativePathIsUsedAsync()
         {
@@ -5795,6 +6045,45 @@ namespace NuGet.CommandLine.Test
                 Assert.DoesNotContain("Writing lock file to disk", r.Item2);
 
 
+            }
+        }
+
+        [Fact]
+        public async Task RestoreNetCore_LongPathInPackage()
+        {
+            // Arrange
+            using (var pathContext = new SimpleTestPathContext())
+            {
+                // Set up solution, project, and packages
+                var solution = new SimpleTestSolutionContext(pathContext.SolutionRoot);
+
+                var projectA = SimpleTestProjectContext.CreateNETCore(
+                    "a",
+                    pathContext.SolutionRoot,
+                    NuGetFramework.Parse("net45"));
+
+                var packageX = new SimpleTestPackageContext()
+                {
+                    Id = "x",
+                    Version = "1.0.0"
+                };
+                packageX.AddFile(@"content/2.5.6/core/store/x64/netcoreapp2.0/microsoft.extensions.configuration.environmentvariables/2.0.0/lib/netstandard2.0/Microsoft.Extensions.Configuration.EnvironmentVariables.dll ");
+
+                await SimpleTestPackageUtility.CreateFolderFeedV3Async(
+                    pathContext.PackageSource,
+                    packageX);
+
+                projectA.AddPackageToAllFrameworks(packageX);
+
+                solution.Projects.Add(projectA);
+                solution.Create(pathContext.SolutionRoot);
+
+
+                // Act
+                var r = Util.RestoreSolution(pathContext);
+
+                // Assert
+                r.Success.Should().BeTrue();
             }
         }
     }

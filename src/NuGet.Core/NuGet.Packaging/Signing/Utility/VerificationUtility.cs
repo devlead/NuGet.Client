@@ -12,6 +12,48 @@ namespace NuGet.Packaging.Signing
 {
     public static class VerificationUtility
     {
+        public static SignatureVerificationStatus GetSignatureVerificationStatus(SignatureVerificationStatusFlags flags)
+        {
+            if (flags == SignatureVerificationStatusFlags.NoErrors)
+            {
+                return SignatureVerificationStatus.Valid;
+            }
+
+            if ((flags & SignatureVerificationStatusFlags.Suspect) != 0)
+            {
+                return SignatureVerificationStatus.Suspect;
+            }
+
+            // If the only flags are these known ones, return disallowed.
+            if ((flags & ~(SignatureVerificationStatusFlags.Illegal |
+                SignatureVerificationStatusFlags.Untrusted |
+                SignatureVerificationStatusFlags.NoValidTimestamp |
+                SignatureVerificationStatusFlags.MultipleTimestamps)) == 0)
+            {
+                return SignatureVerificationStatus.Disallowed;
+            }
+
+            return SignatureVerificationStatus.Unknown;
+        }
+
+        public static bool IsVerificationTarget(SignatureType signatureType, VerificationTarget target)
+        {
+            switch (signatureType)
+            {
+                case SignatureType.Unknown:
+                    return target.HasFlag(VerificationTarget.Unknown);
+
+                case SignatureType.Author:
+                    return target.HasFlag(VerificationTarget.Author);
+
+                case SignatureType.Repository:
+                    return target.HasFlag(VerificationTarget.Repository);
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
         internal static SignatureVerificationStatusFlags ValidateSigningCertificate(X509Certificate2 certificate, bool treatIssuesAsErrors, string signatureFriendlyName, List<SignatureLog> issues)
         {
             if (certificate == null)
@@ -129,6 +171,12 @@ namespace NuGet.Packaging.Signing
                 {
                     issues.Add(SignatureLog.Issue(treatIssuesAsErrors, NuGetLogCode.NU3025, string.Format(CultureInfo.CurrentCulture, Strings.VerifyError_TimestampNotYetValid, signature.FriendlyName)));
                     validationFlags |= SignatureVerificationStatusFlags.CertificateValidityInTheFuture;
+                }
+
+                if (!CertificateUtility.IsDateInsideValidityPeriod(signerInfo.Certificate, timestamp.GeneralizedTime))
+                {
+                    issues.Add(SignatureLog.Issue(treatIssuesAsErrors, NuGetLogCode.NU3036, string.Format(CultureInfo.CurrentCulture, Strings.VerifyError_TimestampGeneralizedTimeInvalid, signature.FriendlyName)));
+                    validationFlags |= SignatureVerificationStatusFlags.GeneralizedTimeOutsideValidity;
                 }
             }
             else

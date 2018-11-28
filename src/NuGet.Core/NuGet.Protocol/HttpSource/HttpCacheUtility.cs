@@ -3,10 +3,7 @@
 
 using System;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NuGet.Common;
@@ -29,8 +26,8 @@ namespace NuGet.Protocol
             // directory is the responsibility of the caller.
             if (context.MaxAge > TimeSpan.Zero)
             {
-                var baseFolderName = RemoveInvalidFileNameChars(ComputeHash(sourceUri.OriginalString));
-                var baseFileName = RemoveInvalidFileNameChars(cacheKey) + ".dat";
+                var baseFolderName = CachingUtility.RemoveInvalidFileNameChars(CachingUtility.ComputeHash(sourceUri.OriginalString));
+                var baseFileName = CachingUtility.RemoveInvalidFileNameChars(cacheKey) + ".dat";
                 var cacheFolder = Path.Combine(httpCacheDirectory, baseFolderName);
                 var cacheFile = Path.Combine(cacheFolder, baseFileName);
                 var newCacheFile = cacheFile + "-new";
@@ -50,53 +47,6 @@ namespace NuGet.Protocol
                     newTemporaryFile,
                     temporaryFile);
             }
-        }
-
-        private static string ComputeHash(string value)
-        {
-            var trailing = value.Length > 32 ? value.Substring(value.Length - 32) : value;
-            byte[] hash;
-            using (var sha = SHA1.Create())
-            {
-                hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
-            }
-
-            const string hex = "0123456789abcdef";
-            return hash.Aggregate("$" + trailing, (result, ch) => "" + hex[ch / 0x10] + hex[ch % 0x10] + result);
-        }
-
-        private static string RemoveInvalidFileNameChars(string value)
-        {
-            var invalid = Path.GetInvalidFileNameChars();
-            return new string(
-                value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray()
-                )
-                .Replace("__", "_")
-                .Replace("__", "_");
-        }
-
-        public static Stream TryReadCacheFile(string uri, TimeSpan maxAge, string cacheFile)
-        {
-            var fileInfo = new FileInfo(cacheFile);
-
-            if (fileInfo.Exists)
-            {
-                var age = DateTime.UtcNow.Subtract(fileInfo.LastWriteTimeUtc);
-                if (age < maxAge)
-                {
-                    var stream = new FileStream(
-                        cacheFile,
-                        FileMode.Open,
-                        FileAccess.Read,
-                        FileShare.Read | FileShare.Delete,
-                        BufferSize,
-                        useAsync: true);
-
-                    return stream;
-                }
-            }
-
-            return null;
         }
 
         public static async Task CreateCacheFileAsync(
@@ -121,8 +71,7 @@ namespace NuGet.Protocol
                 FileMode.Create,
                 FileAccess.ReadWrite,
                 FileShare.None,
-                BufferSize,
-                useAsync: true))
+                BufferSize))
             {
                 using (var networkStream = await response.Content.ReadAsStreamAsync())
                 {
@@ -130,8 +79,11 @@ namespace NuGet.Protocol
                 }
 
                 // Validate the content before putting it into the cache.
-                fileStream.Seek(0, SeekOrigin.Begin);
-                ensureValidContents?.Invoke(fileStream);
+                if (ensureValidContents != null)
+                {
+                    fileStream.Seek(0, SeekOrigin.Begin);
+                    ensureValidContents.Invoke(fileStream);
+                }
             }
 
             if (File.Exists(result.CacheFile))
@@ -139,7 +91,7 @@ namespace NuGet.Protocol
                 // Process B can perform deletion on an opened file if the file is opened by process A
                 // with FileShare.Delete flag. However, the file won't be actually deleted until A close it.
                 // This special feature can cause race condition, so we never delete an opened file.
-                if (!IsFileAlreadyOpen(result.CacheFile))
+                if (!CachingUtility.IsFileAlreadyOpen(result.CacheFile))
                 {
                     File.Delete(result.CacheFile);
                 }
@@ -168,31 +120,7 @@ namespace NuGet.Protocol
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read | FileShare.Delete,
-                BufferSize,
-                useAsync: true);
-        }
-
-        private static bool IsFileAlreadyOpen(string filePath)
-        {
-            FileStream stream = null;
-
-            try
-            {
-                stream = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            }
-            catch
-            {
-                return true;
-            }
-            finally
-            {
-                if (stream != null)
-                {
-                    stream.Dispose();
-                }
-            }
-
-            return false;
+                BufferSize);
         }
     }
 }

@@ -131,7 +131,7 @@ namespace NuGet.Test.Utility
                     zip.AddEntry("contentFiles/cs/net45/code.cs", new byte[] { 0 });
                     zip.AddEntry("lib/net45/a.dll", new byte[] { 0 });
                     zip.AddEntry("lib/netstandard1.0/a.dll", new byte[] { 0 });
-                    zip.AddEntry($"build/net45/{id}.targets", @"<targets />", Encoding.UTF8);
+                    zip.AddEntry($"build/net45/{id}.targets", @"<Project />", Encoding.UTF8);
                     zip.AddEntry("runtimes/any/native/a.dll", new byte[] { 0 });
                     zip.AddEntry("tools/a.exe", new byte[] { 0 });
                 }
@@ -481,9 +481,8 @@ namespace NuGet.Test.Utility
                             new PackageExtractionContext(
                                 saveMode,
                                 XmlDocFileSaveMode.None,
-                                NullLogger.Instance,
-                                signedPackageVerifier: null,
-                                signedPackageVerifierSettings: null),
+                                clientPolicyContext: null,
+                                logger: NullLogger.Instance),
                             CancellationToken.None);
                     }
                 }
@@ -522,9 +521,8 @@ namespace NuGet.Test.Utility
             var context = new PackageExtractionContext(
                         PackageSaveMode.Defaultv2,
                         PackageExtractionBehavior.XmlDocFileSaveMode,
-                        NullLogger.Instance,
-                        signedPackageVerifier: null,
-                        signedPackageVerifierSettings: null);
+                        clientPolicyContext: null,
+                        logger: NullLogger.Instance);
 
             foreach (var path in nupkgPaths)
             {
@@ -546,7 +544,7 @@ namespace NuGet.Test.Utility
         /// <summary>
         /// Create packages with PackageBuilder, this includes OPC support.
         /// </summary>
-        public static void CreateOPCPackages(List<SimpleTestPackageContext> packages, string repositoryPath)
+        public static void CreateOPCPackages(List<SimpleTestPackageContext> packages, string repositoryPath, bool developmentDependency = false)
         {
             foreach (var package in packages)
             {
@@ -555,6 +553,7 @@ namespace NuGet.Test.Utility
                     Id = package.Id,
                     Version = NuGetVersion.Parse(package.Version),
                     Description = "Description.",
+                    DevelopmentDependency = developmentDependency
                 };
 
                 builder.Authors.Add("testAuthor");

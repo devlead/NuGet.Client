@@ -60,6 +60,16 @@ namespace NuGet.Common
         NU1003 = 1003,
 
         /// <summary>
+        /// Locked mode, but restore needs to update the lock file.
+        /// </summary>
+        NU1004 = 1004,
+
+        /// <summary>
+        /// Invalid combination of RestorePackagesWithLockFile and packages.lock.json file.
+        /// </summary>
+        NU1005 = 1005,
+
+        /// <summary>
         /// Unable to resolve package, generic message for unknown type constraints.
         /// </summary>
         NU1100 = 1100,
@@ -139,6 +149,16 @@ namespace NuGet.Common
         /// Package MinClientVersion did not match.
         /// </summary>
         NU1401 = 1401,
+
+        /// <summary>
+        /// Package contains unsafe zip entry.
+        /// </summary>
+        NU1402 = 1402,
+
+        /// <summary>
+        /// Package sha512 validation failed.
+        /// </summary>
+        NU1403 = 1403,
 
         /// <summary>
         /// Package Signature is invalid
@@ -396,6 +416,36 @@ namespace NuGet.Common
         NU3035 = 3035,
 
         /// <summary>
+        /// Timestamp Generalized time is outside certificate's valdity period
+        /// </summary>
+        NU3036 = 3036,
+
+        /// <summary>
+        /// The signature has expired.
+        /// </summary>
+        NU3037 = 3037,
+
+        /// <summary>
+        /// Verification settings require a repository countersignature, but the package does not have a repository countersignature.
+        /// </summary>
+        NU3038 = 3038,
+
+        /// <summary>
+        /// The package cannot be signed as it would require the Zip64 format.
+        /// </summary>
+        NU3039 = 3039,
+
+        /// <summary>
+        /// There where two equal certificate entries with conflicting attributes in the nuget.config
+        /// </summary>
+        NU3040 = 3040,
+
+        /// <summary>
+        /// Downloading a package from a plugin is not supported since unsigned packages are not allowed and package download plugins do not support signed package verification.
+        /// </summary>
+        NU3041 = 3041,
+
+        /// <summary>
         /// Undefined Package Error.
         /// </summary>
         NU5000 = 5000,
@@ -546,6 +596,36 @@ namespace NuGet.Common
         NU5029 = 5029,
 
         /// <summary>
+        /// Error_Manifest_LicenseFileNotInNupkg
+        /// </summary>
+        NU5030 = 5030,
+
+        /// <summary>
+        /// Error_Manifest_LicenseFileExtensionIsInvalid
+        /// </summary>
+        NU5031 = 5031,
+
+        /// <summary>
+        /// Error_Manifest_LicenseExpressionIsUnparseable
+        /// </summary>
+        NU5032 = 5032,
+
+        /// <summary>
+        /// Error_Manifest_InvalidLicenseMetadata
+        /// </summary>
+        NU5033 = 5033,
+
+        /// <summary>
+        /// Error_Manifest_InvalidLicenseExpressionVersion
+        /// </summary>
+        NU5034 = 5034,
+
+        /// <summary>
+        /// Error_Manifest_LicenseUrlCannotBeUsedWithLicenses
+        /// </summary>
+        NU5035 = 5035,
+
+        /// <summary>
         /// AssemblyOutsideLibWarning
         /// </summary>
         NU5100 = 5100,
@@ -661,9 +741,24 @@ namespace NuGet.Common
         NU5122 = 5122,
 
         /// <summary>
+        /// Warning_FilePathTooLong
+        /// </summary>
+        NU5123 = 5123,
+
+        /// <summary>
+        /// Warning_UnrecognizedLicenseIdentifier
+        /// </summary>
+        NU5124 = 5124,
+
+        /// <summary>
+        /// LicenseUrlDeprecated
+        /// </summary>
+        NU5125 = 5125,
+
+        /// <summary>
         /// Undefined package warning
         /// </summary>
-        NU5500 = 5500
+        NU5500 = 5500,
 
     }
 }

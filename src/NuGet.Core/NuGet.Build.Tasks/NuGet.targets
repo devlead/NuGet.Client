@@ -118,7 +118,9 @@ Copyright (c) .NET Foundation. All rights reserved.
       RestoreIgnoreFailedSources="$(RestoreIgnoreFailedSources)"
       RestoreRecursive="$(RestoreRecursive)"
       RestoreForce="$(RestoreForce)"
-      HideWarningsAndErrors="$(HideWarningsAndErrors)"/>
+      HideWarningsAndErrors="$(HideWarningsAndErrors)"
+      Interactive="$(NuGetInteractive)"
+      RestoreForceEvaluate="$(RestoreForceEvaluate)"/>
   </Target>
 
   <!--
@@ -656,6 +658,9 @@ Copyright (c) .NET Foundation. All rights reserved.
         <TreatWarningsAsErrors>$(TreatWarningsAsErrors)</TreatWarningsAsErrors>
         <WarningsAsErrors>$(WarningsAsErrors)</WarningsAsErrors>
         <NoWarn>$(NoWarn)</NoWarn>
+        <RestorePackagesWithLockFile>$(RestorePackagesWithLockFile)</RestorePackagesWithLockFile>
+        <NuGetLockFilePath>$(NuGetLockFilePath)</NuGetLockFilePath>
+        <RestoreLockedMode>$(RestoreLockedMode)</RestoreLockedMode>
       </_RestoreGraphEntry>
     </ItemGroup>
 

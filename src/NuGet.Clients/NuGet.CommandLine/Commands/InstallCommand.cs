@@ -198,11 +198,25 @@ namespace NuGet.CommandLine
                 cacheContext.NoCache = NoCache;
                 cacheContext.DirectDownload = DirectDownload;
 
-                var downloadContext = new PackageDownloadContext(cacheContext, installPath, DirectDownload);
+                var clientPolicyContext = ClientPolicyContext.GetClientPolicy(Settings, Console);
+
+                var projectContext = new ConsoleProjectContext(Console)
+                {
+                    PackageExtractionContext = new PackageExtractionContext(
+                        Packaging.PackageSaveMode.Defaultv2,
+                        PackageExtractionBehavior.XmlDocFileSaveMode,
+                        clientPolicyContext,
+                        Console)
+                };
+
+                var downloadContext = new PackageDownloadContext(cacheContext, installPath, DirectDownload)
+                {
+                    ClientPolicyContext = clientPolicyContext
+                };
 
                 var result = await PackageRestoreManager.RestoreMissingPackagesAsync(
                     packageRestoreContext,
-                    new ConsoleProjectContext(Console),
+                    projectContext,
                     downloadContext);
 
                 if (downloadContext.DirectDownload)
@@ -359,16 +373,15 @@ namespace NuGet.CommandLine
                 }
                 else
                 {
-                    var signedPackageVerifier = new PackageSignatureVerifier(SignatureVerificationProviderFactory.GetSignatureVerificationProviders());
+                    var clientPolicyContext = ClientPolicyContext.GetClientPolicy(Settings, Console);
 
                     var projectContext = new ConsoleProjectContext(Console)
                     {
                         PackageExtractionContext = new PackageExtractionContext(
                             Packaging.PackageSaveMode.Defaultv2,
                             PackageExtractionBehavior.XmlDocFileSaveMode,
-                            Console,
-                            signedPackageVerifier,
-                            SignedPackageVerifierSettings.GetDefault())
+                            clientPolicyContext,
+                            Console)
                     };
 
                     if (EffectivePackageSaveMode != Packaging.PackageSaveMode.None)
@@ -379,7 +392,10 @@ namespace NuGet.CommandLine
                     resolutionContext.SourceCacheContext.NoCache = NoCache;
                     resolutionContext.SourceCacheContext.DirectDownload = DirectDownload;
 
-                    var downloadContext = new PackageDownloadContext(resolutionContext.SourceCacheContext, installPath, DirectDownload);
+                    var downloadContext = new PackageDownloadContext(resolutionContext.SourceCacheContext, installPath, DirectDownload)
+                    {
+                        ClientPolicyContext = clientPolicyContext
+                    };
 
                     await packageManager.InstallPackageAsync(
                         project,

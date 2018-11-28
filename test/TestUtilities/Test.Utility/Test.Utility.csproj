@@ -1,11 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'README.md'))\build\common.props" />
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
   <PropertyGroup>
     <TargetFrameworks>net46;netstandard1.6</TargetFrameworks>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn Condition="'$(TargetFramework)' == 'netstandard1.6'">$(NoWarn);CS1998</NoWarn>
     <PackProject>true</PackProject>
     <Shipping>true</Shipping>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +17,21 @@
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net46' ">
     <ProjectReference Include="$(NuGetClientsSrcDirectory)NuGet.CommandLine\NuGet.CommandLine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="compiler\resources\.signature.p7s" />
+    <None Remove="compiler\resources\CentralDirectoryHeaderWithZip64ExtraField.zip" />
+    <None Remove="compiler\resources\EmptyZip64.zip" />
+    <None Remove="compiler\resources\intermediate.crt" />
+    <None Remove="compiler\resources\leaf.crt" />
+    <None Remove="compiler\resources\LocalFileHeaderWithZip64ExtraField.zip" />
+    <None Remove="compiler\resources\root.crt" />
+    <None Remove="compiler\resources\SignatureFileEntry.zip" />
+    <None Remove="compiler\resources\SignatureFileWithDeflateCompressionMethodAndDefaultCompressionLevel.zip" />
+    <None Remove="compiler\resources\SignatureFileWithFakeContent.zip" />
+    <None Remove="compiler\resources\SignatureFileWithUppercaseFileName.zip" />
+    <None Remove="compiler\resources\SignedPackage.1.0.0.nupkg" />
   </ItemGroup>
 
   <ItemGroup>
@@ -72,4 +90,5 @@
   </ItemGroup>
 
   <Import Project="$(BuildCommonDirectory)common.targets" />
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

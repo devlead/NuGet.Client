@@ -15,21 +15,27 @@ namespace NuGet.Packaging.Signing
         /// <summary>
         /// True if signature is valid.
         /// </summary>
-        public bool Valid { get; }
+        public bool IsValid { get; }
+
+        /// <summary>
+        /// True if the package is signed.
+        /// </summary>
+        public bool IsSigned { get; }
 
         /// <summary>
         /// Individual trust results.
         /// </summary>
         public IReadOnlyList<PackageVerificationResult> Results { get; }
 
-        public VerifySignaturesResult(bool valid)
-            : this(valid, results: Enumerable.Empty<PackageVerificationResult>())
+        public VerifySignaturesResult(bool isValid, bool isSigned)
+            : this(isValid, isSigned, results: Enumerable.Empty<PackageVerificationResult>())
         {
         }
 
-        public VerifySignaturesResult(bool valid, IEnumerable<PackageVerificationResult> results)
+        public VerifySignaturesResult(bool isValid, bool isSigned, IEnumerable<PackageVerificationResult> results)
         {
-            Valid = valid;
+            IsValid = isValid;
+            IsSigned = isSigned;
             Results = results?.ToList().AsReadOnly() ?? throw new ArgumentNullException(nameof(results));
         }
     }

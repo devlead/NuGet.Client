@@ -1,11 +1,13 @@
-﻿<UserControl
+<UserControl
   x:Class="NuGet.PackageManagement.UI.PackageMetadataControl"
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
   xmlns:nuget="clr-namespace:NuGet.PackageManagement.UI"
-  Background="{DynamicResource {x:Static nuget:Brushes.DetailPaneBackground}}"
+  xmlns:imaging="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.Imaging"
+  xmlns:catalog="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.ImageCatalog"  
+Background="{DynamicResource {x:Static nuget:Brushes.DetailPaneBackground}}"
   Foreground="{DynamicResource {x:Static nuget:Brushes.UIText}}"
   mc:Ignorable="d"
   d:DesignHeight="300"
@@ -15,6 +17,51 @@
       <ResourceDictionary.MergedDictionaries>
         <nuget:SharedResources />
       </ResourceDictionary.MergedDictionaries>
+      <nuget:DateTimeConverter x:Key="DateFormatConverter" />
+      <DataTemplate DataType="{x:Type nuget:LicenseText}">
+        <TextBlock
+            AutomationProperties.LabeledBy="{Binding ElementName=_packageLicenseText}"
+            AutomationProperties.AutomationId="{Binding Id, Mode=OneWay, StringFormat='LicenseTerm_{0}'}">
+                <Hyperlink
+                    AutomationProperties.AutomationId="{Binding Id, Mode=OneWay, StringFormat='LicenseTermLink_{0}'}"
+                    Style="{StaticResource HyperlinkStyle}"
+                    Command="{x:Static nuget:PackageManagerControlCommands.OpenExternalLink}"
+                    ToolTip="{Binding Link}"
+                    NavigateUri="{Binding Link}">
+                    <Run Text="{Binding Text}"></Run>
+                </Hyperlink>
+        </TextBlock>
+      </DataTemplate>
+
+      <DataTemplate DataType="{x:Type nuget:LicenseFileText}">
+        <TextBlock
+            AutomationProperties.LabeledBy="{Binding ElementName=_packageLicenseText}"
+            AutomationProperties.AutomationId="{Binding Id, Mode=OneWay, StringFormat='LicenseFile'}">
+                <Hyperlink
+                    AutomationProperties.AutomationId="{Binding Id, Mode=OneWay, StringFormat='LicenseFileLink'}"
+                    Click="ViewLicense_Click">
+                  <Run Text="{Binding Text}"/>
+                </Hyperlink>
+        </TextBlock>
+      </DataTemplate>
+
+      <DataTemplate DataType="{x:Type nuget:WarningText}">
+        <imaging:CrispImage
+                        x:Name="_licenseWarning"
+                        Margin="0,0,4,0"
+                        Width="13"
+                        Height="13"
+                        Visibility="{Binding Text, Converter={StaticResource NullToVisibilityConverter}}"
+                        ToolTip="{Binding Text}"
+                        Moniker="{x:Static catalog:KnownMonikers.StatusWarning}" />
+      </DataTemplate>
+      
+      <DataTemplate DataType="{x:Type nuget:FreeText}">
+        <TextBlock
+            AutomationProperties.LabeledBy="{Binding ElementName=_packageLicenseOperator}"
+            AutomationProperties.AutomationId="{Binding Id, Mode=OneWay, StringFormat='LicenseOperator_{0}'}"
+            Text="{Binding Text}" />
+      </DataTemplate>
     </ResourceDictionary>
   </UserControl.Resources>
   <Grid>
@@ -32,12 +79,16 @@
     <!-- descriptions -->
     <TextBlock
       Grid.Row="0"
+      x:Name="_descriptionLabel"
+      AutomationProperties.Name="{Binding Text}"
       Text="{x:Static nuget:Resources.Label_Description}"
       FontWeight="Bold" />
     <TextBox
       Style="{DynamicResource SelectableTextBlockStyle}" 
       Grid.Row="1"
       x:Name="_description"
+      AutomationProperties.Name="{Binding Path=Description}"
+      AutomationProperties.LabeledBy="{Binding ElementName=_descriptionLabel}"
       Margin="0,8,0,0"
       TextWrapping="Wrap"
       Text="{Binding Path=Description}" />
@@ -71,12 +122,16 @@
         Grid.Column="0"
         Margin="0,8,0,0"
         FontWeight="Bold"
+        x:Name="_versionLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_Version}" />
       <TextBox
         Style="{DynamicResource SelectableTextBlockStyle}" 
         Grid.Row="0"
         Grid.Column="1"
         Visibility="{Binding Path=Version,Converter={StaticResource NullToVisibilityConverter}}"
+        AutomationProperties.Name="{Binding Path=Version,Converter={StaticResource VersionToStringConverter},ConverterParameter=F}"
+        AutomationProperties.LabeledBy="{Binding ElementName=_versionLabel}"
         Text="{Binding Path=Version,Converter={StaticResource VersionToStringConverter},ConverterParameter=F}"
         Margin="8,8,0,0"
         TextWrapping="Wrap" />
@@ -88,10 +143,14 @@
         Grid.Column="0"
         Margin="0,8,0,0"
         FontWeight="Bold"
+        x:Name="_ownersLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_Owners}" />
       <TextBox
         Style="{DynamicResource SelectableTextBlockStyle}" 
         Visibility="{Binding Path=Owners,Converter={StaticResource NullToVisibilityConverter}}"
+        AutomationProperties.Name="{Binding Path=Owners}"
+        AutomationProperties.LabeledBy="{Binding ElementName=_ownersLabel}"
         Text="{Binding Path=Owners}"
         Margin="8,8,0,0"
         TextWrapping="Wrap"
@@ -105,10 +164,14 @@
         Grid.Column="0"
         Margin="0,8,0,0"
         FontWeight="Bold"
+        x:Name="_authorsLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_Authors}" />
       <TextBox
         Style="{DynamicResource SelectableTextBlockStyle}" 
         Visibility="{Binding Path=Authors,Converter={StaticResource NullToVisibilityConverter}}"
+        AutomationProperties.Name="{Binding Path=Authors}"
+        AutomationProperties.LabeledBy="{Binding ElementName=_authorsLabel}"
         Text="{Binding Path=Authors}"
         Margin="8,8,0,0"
         TextWrapping="Wrap"
@@ -122,20 +185,17 @@
         Grid.Column="0"
         FontWeight="Bold"
         Margin="0,8,0,0"
-        Text="{x:Static nuget:Resources.Label_License}" />
-      <TextBlock
-        Visibility="{Binding Path=LicenseUrl,Converter={StaticResource NullToVisibilityConverter}}"
-        TextWrapping="Wrap"
-        Margin="8,8,0,0"
-        Grid.Row="3"
-        Grid.Column="1">
-        <Hyperlink
-          NavigateUri="{Binding Path=LicenseUrl}"
-          Style="{StaticResource HyperlinkStyle}"
-          Command="{x:Static nuget:PackageManagerControlCommands.OpenExternalLink}">
-          <Run Text="{Binding Path=LicenseUrl}" />
-        </Hyperlink>
-      </TextBlock>
+        x:Name="_licenseLabel"
+        AutomationProperties.Name="{Binding Text}"
+        Text="{x:Static nuget:Resources.Label_License}"/>
+
+      <ItemsControl Grid.Row="3" Grid.Column="1" ItemsSource="{Binding LicenseLinks}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel Margin="8,8,0,0" Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+      </ItemsControl>
 
       <!-- downloads -->
       <TextBlock
@@ -144,10 +204,14 @@
         Grid.Column="0"
         FontWeight="Bold"
         Margin="0,8,0,0"
+        x:Name="_downloadsLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_Downloads}" />
       <TextBox
         Style="{DynamicResource SelectableTextBlockStyle}" 
         Visibility="{Binding Path=DownloadCount,Converter={StaticResource DownloadCountToVisibilityConverter}}"
+        AutomationProperties.Name="{Binding Path=DownloadCount,StringFormat={}{0:N0}}"
+        AutomationProperties.LabeledBy="{Binding ElementName=_downloadsLabel}"
         Text="{Binding Path=DownloadCount,StringFormat={}{0:N0}}"
         Margin="8,8,0,0"
         TextWrapping="Wrap"
@@ -161,11 +225,16 @@
         Grid.Column="0"
         FontWeight="Bold"
         Margin="0,8,0,0"
+        x:Name="_datePublishedLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_DatePublished}" />
       <TextBox
+        Name="datePublished"
         Style="{DynamicResource SelectableTextBlockStyle}" 
         Visibility="{Binding Path=Published,Converter={StaticResource NullToVisibilityConverter}}"
-        Text="{Binding Path=Published,StringFormat={}{0:D} ({0:d})}"
+        Text="{Binding Path=Published,Converter={StaticResource DateFormatConverter}}"
+        AutomationProperties.Name="{Binding Path=Published,Converter={StaticResource DateFormatConverter}}"
+        AutomationProperties.LabeledBy="{Binding ElementName=_datePublishedLabel}"
         Margin="8,8,0,0"
         TextWrapping="Wrap"
         Grid.Row="5"
@@ -178,6 +247,8 @@
         Grid.Column="0"
         FontWeight="Bold"
         Margin="0,8,0,0"
+        x:Name="_projectUrlLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_ProjectUrl}" />
 
       <TextBlock
@@ -185,7 +256,8 @@
         TextWrapping="Wrap"
         Margin="8,8,0,0"
         Grid.Row="6"
-        Grid.Column="1">
+        Grid.Column="1"
+        AutomationProperties.LabeledBy="{Binding ElementName=_projectUrlLabel}">
         <Hyperlink
           NavigateUri="{Binding Path=ProjectUrl}"
           Style="{StaticResource HyperlinkStyle}"
@@ -201,6 +273,8 @@
         Grid.Column="0"
         FontWeight="Bold"
         Margin="0,8,0,0"
+        x:Name="_reportAbuseLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_ReportAbuse}" />
 
       <TextBlock
@@ -208,7 +282,8 @@
         TextWrapping="Wrap"
         Margin="8,8,0,0"
         Grid.Row="7"
-        Grid.Column="1">
+        Grid.Column="1"
+        AutomationProperties.LabeledBy="{Binding ElementName=_reportAbuseLabel}">
         <Hyperlink
           NavigateUri="{Binding Path=ReportAbuseUrl}"
           Style="{StaticResource HyperlinkStyle}"
@@ -224,10 +299,14 @@
         Grid.Column="0"
         FontWeight="Bold"
         Margin="0,8,0,0"
+        x:Name="_tagsLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_Tags}" />
       <TextBox
         Style="{DynamicResource SelectableTextBlockStyle}" 
         Visibility="{Binding Path=Tags,Converter={StaticResource NullToVisibilityConverter}}"
+        AutomationProperties.Name="{Binding Path=Tags}"
+        AutomationProperties.LabeledBy="{Binding ElementName=_tagsLabel}"
         Text="{Binding Path=Tags}"
         Margin="8,8,0,0"
         TextWrapping="Wrap"
@@ -242,13 +321,16 @@
       <TextBlock
         FontWeight="Bold"
         Margin="0,8,0,0"
+        x:Name="_dependenciesLabel"
+        AutomationProperties.Name="{Binding Text}"
         Text="{x:Static nuget:Resources.Label_Dependencies}" />
 
       <ItemsControl
         ItemsSource="{Binding Path=DependencySets}"
         Visibility="{Binding Path=HasDependencies,Converter={StaticResource BooleanToVisibilityConverter}}"
         IsTabStop="False"
-        Margin="8,0,0,0">
+        Margin="8,0,0,0"
+        AutomationProperties.LabeledBy="{Binding ElementName=_dependenciesLabel}">
         <ItemsControl.ItemTemplate>
           <DataTemplate>
             <StackPanel
@@ -257,14 +339,19 @@
               <TextBlock
                 Text="{Binding TargetFramework,Converter={StaticResource NuGetFrameworkToStringConverter}}"
                 FontWeight="Bold"
+                x:Name="_targetFramework"
+                AutomationProperties.Name="{Binding Text}"
                 Visibility="{Binding TargetFramework,Converter={StaticResource NuGetFrameworkToVisibilityConverter}}" />
               <ItemsControl
                 ItemsSource="{Binding Dependencies}"
-                IsTabStop="False">
+                IsTabStop="False"
+                AutomationProperties.LabeledBy="{Binding ElementName=_targetFramework}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <TextBox 
+                    <TextBox
+                      x:Name="_dependencies"
                       Style="{DynamicResource SelectableTextBlockStyle}"
+                      AutomationProperties.Name="{Binding Text}"
                       Text="{Binding Mode=OneWay}"/>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -272,6 +359,8 @@
               <TextBlock
                 FontStyle="Italic"
                 Text="{x:Static nuget:Resources.Text_NoDependencies}"
+                x:Name="_noDependencies"
+                AutomationProperties.Name="{Binding Text}"
                 Visibility="{Binding Dependencies,Converter={StaticResource EmptyEnumerableToVisibilityConverter}}" />
             </StackPanel>
           </DataTemplate>
@@ -282,6 +371,9 @@
         Margin="0,8,0,0"
         Visibility="{Binding Path=HasDependencies,Converter={StaticResource InvertedBooleanToVisibilityConverter}}"
         FontStyle="Italic"
+        x:Name="_hasDependencies"
+        AutomationProperties.Name="{Binding Text}"
+        AutomationProperties.LabeledBy="{Binding ElementName=_dependenciesLabel}"
         Text="{x:Static nuget:Resources.Text_NoDependencies}" />
     </StackPanel>
   </Grid>

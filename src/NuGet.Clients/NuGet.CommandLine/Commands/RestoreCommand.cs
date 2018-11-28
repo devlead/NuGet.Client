@@ -1,3 +1,6 @@
+// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -19,6 +22,7 @@ using NuGet.ProjectManagement;
 using NuGet.ProjectModel;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
+using NuGet.Shared;
 
 namespace NuGet.CommandLine
 {
@@ -58,7 +62,20 @@ namespace NuGet.CommandLine
         }
 
         // The directory that contains msbuild
-        private Lazy<string> _msbuildDirectory;
+        private Lazy<MsBuildToolset> _msbuildDirectory;
+
+        private Lazy<MsBuildToolset> MsBuildDirectory
+        {
+            get
+            {
+                if (_msbuildDirectory == null)
+                {
+                    _msbuildDirectory = MsBuildUtility.GetMsBuildDirectoryFromMsBuildPath(MSBuildPath, MSBuildVersion, Console);
+
+                }
+                return _msbuildDirectory;
+            }
+        }
 
         public override async Task ExecuteCommandAsync()
         {
@@ -70,8 +87,6 @@ namespace NuGet.CommandLine
             CalculateEffectivePackageSaveMode();
 
             var restoreSummaries = new List<RestoreSummary>();
-
-            _msbuildDirectory = MsBuildUtility.GetMsBuildDirectoryFromMsBuildPath(MSBuildPath, MSBuildVersion, Console);
 
             if (!string.IsNullOrEmpty(SolutionDirectory))
             {
@@ -95,6 +110,12 @@ namespace NuGet.CommandLine
             {
                 var v2RestoreResult = await PerformNuGetV2RestoreAsync(restoreInputs);
                 restoreSummaries.Add(v2RestoreResult);
+
+                // log warnings
+                v2RestoreResult
+                    .Errors
+                    .Where(l => l.Level == LogLevel.Warning)
+                    .ForEach(l => Console.LogWarning(l.FormatWithCode()));
             }
 
             // project.json and PackageReference
@@ -212,6 +233,11 @@ namespace NuGet.CommandLine
             }
         }
 
+        protected override void SetDefaultCredentialProvider()
+        {
+            SetDefaultCredentialProvider(MsBuildDirectory);
+        }
+
         private async Task<RestoreSummary> PerformNuGetV2RestoreAsync(PackageRestoreInputs packageRestoreInputs)
         {
             ReadSettings(packageRestoreInputs);
@@ -303,17 +329,15 @@ namespace NuGet.CommandLine
             CheckRequireConsent();
 
             var collectorLogger = new RestoreCollectorLogger(Console);
-
-            var signedPackageVerifier = new PackageSignatureVerifier(SignatureVerificationProviderFactory.GetSignatureVerificationProviders());
+            var clientPolicyContext = ClientPolicyContext.GetClientPolicy(Settings, collectorLogger);
 
             var projectContext = new ConsoleProjectContext(collectorLogger)
             {
                 PackageExtractionContext = new PackageExtractionContext(
-                        Packaging.PackageSaveMode.Defaultv2,
-                        PackageExtractionBehavior.XmlDocFileSaveMode,
-                        collectorLogger,
-                        signedPackageVerifier,
-                        SignedPackageVerifierSettings.GetDefault())
+                    Packaging.PackageSaveMode.Defaultv2,
+                    PackageExtractionBehavior.XmlDocFileSaveMode,
+                    clientPolicyContext,
+                    collectorLogger)
             };
 
             if (EffectivePackageSaveMode != Packaging.PackageSaveMode.None)
@@ -326,7 +350,10 @@ namespace NuGet.CommandLine
                 cacheContext.NoCache = NoCache;
                 cacheContext.DirectDownload = DirectDownload;
 
-                var downloadContext = new PackageDownloadContext(cacheContext, packagesFolderPath, DirectDownload);
+                var downloadContext = new PackageDownloadContext(cacheContext, packagesFolderPath, DirectDownload)
+                {
+                    ClientPolicyContext = clientPolicyContext
+                };
 
                 var result = await PackageRestoreManager.RestoreMissingPackagesAsync(
                     packageRestoreContext,
@@ -341,11 +368,42 @@ namespace NuGet.CommandLine
                 return new RestoreSummary(
                     result.Restored,
                     "packages.config projects",
-                    Settings.Priority.Select(x => Path.Combine(x.Root, x.FileName)),
+                    Settings.GetConfigFilePaths(),
                     packageSources.Select(x => x.Source),
                     installCount,
-                    collectorLogger.Errors.Concat(failedEvents.Select(e => new RestoreLogMessage(LogLevel.Error, NuGetLogCode.Undefined, e.Exception.Message))));
+                    collectorLogger.Errors.Concat(ProcessFailedEventsIntoRestoreLogs(failedEvents)));
             }
+        }
+
+        /// <summary>
+        /// Processes List of PackageRestoreFailedEventArgs into a List of RestoreLogMessages.
+        /// </summary>
+        /// <param name="failedEvents">List of PackageRestoreFailedEventArgs.</param>
+        /// <returns>List of RestoreLogMessages.</returns>
+        private static IEnumerable<RestoreLogMessage> ProcessFailedEventsIntoRestoreLogs(ConcurrentQueue<PackageRestoreFailedEventArgs> failedEvents)
+        {
+            var result = new List<RestoreLogMessage>();
+
+            foreach(var failedEvent in failedEvents)
+            {
+                if (failedEvent.Exception is SignatureException)
+                {
+                    var signatureException = failedEvent.Exception as SignatureException;
+
+                    var errorsAndWarnings = signatureException
+                        .Results.SelectMany(r => r.Issues)
+                        .Where(i => i.Level == LogLevel.Error || i.Level == LogLevel.Warning)
+                        .Select(i => i.AsRestoreLogMessage());
+
+                    result.AddRange(errorsAndWarnings);
+                }
+                else
+                {
+                    result.Add(new RestoreLogMessage(LogLevel.Error, NuGetLogCode.Undefined, failedEvent.Exception.Message));
+                }
+            }
+
+            return result;
         }
 
         private void CheckRequireConsent()
@@ -573,7 +631,7 @@ namespace NuGet.CommandLine
 
             // Call MSBuild to resolve P2P references.
             return await MsBuildUtility.GetProjectReferencesAsync(
-                _msbuildDirectory.Value,
+                MsBuildDirectory.Value,
                 projectsWithPotentialP2PReferences,
                 scaleTimeout,
                 Console,
@@ -785,7 +843,7 @@ namespace NuGet.CommandLine
                 restoreInputs.PackagesConfigFiles.Add(solutionLevelPackagesConfig);
             }
 
-            var projectFiles = MsBuildUtility.GetAllProjectFileNames(solutionFileFullPath, _msbuildDirectory.Value);
+            var projectFiles = MsBuildUtility.GetAllProjectFileNames(solutionFileFullPath, MsBuildDirectory.Value.Path);
 
             foreach (var projectFile in projectFiles)
             {

@@ -212,7 +212,7 @@
 {2}: resolved version</comment>
   </data>
   <data name="Log_VersionConflict" xml:space="preserve">
-    <value>Version conflict detected for {0}. Reference the package directly from the project to resolve this issue.</value>
+    <value>Version conflict detected for {0}. Install/reference {1} directly to project {2} to resolve this issue.</value>
   </data>
   <data name="Error_UnknownBuildAction" xml:space="preserve">
     <value>Package '{0}' specifies an invalid build action '{1}' for file '{2}'.</value>
@@ -222,6 +222,7 @@
   </data>
   <data name="Log_ErrorSummary" xml:space="preserve">
     <value>Errors in {0}</value>
+    <comment>0 - project name/type</comment>
   </data>
   <data name="Log_FeedsUsedSummary" xml:space="preserve">
     <value>Feeds used:</value>
@@ -427,8 +428,8 @@
     <value>Clearing NuGet cache: {0}</value>
     <comment>{0} : Cache path</comment>
   </data>
-  <data name="LocalsCommand_ClearingNuGetGlobalPackagesCache" xml:space="preserve">
-    <value>Clearing NuGet global packages cache: {0}</value>
+  <data name="LocalsCommand_ClearingNuGetGlobalPackagesFolder" xml:space="preserve">
+    <value>Clearing NuGet global packages folder: {0}</value>
     <comment>{0} : Global packages cache path</comment>
   </data>
   <data name="LocalsCommand_ClearingNuGetHttpCache" xml:space="preserve">
@@ -452,7 +453,7 @@
     <value>Reading project file {0}.</value>
   </data>
   <data name="LocalsCommand_Help" xml:space="preserve">
-    <value>usage: NuGet locals &lt;all | http-cache | global-packages | temp&gt; [--clear | -c | --list | -l]
+    <value>usage: NuGet locals &lt;all | http-cache | global-packages | temp | plugins-cache&gt; [--clear | -c | --list | -l]
 For more information, visit http://docs.nuget.org/docs/reference/command-line-reference</value>
   </data>
   <data name="InvalidRestoreInput" xml:space="preserve">
@@ -569,7 +570,7 @@ For more information, visit http://docs.nuget.org/docs/reference/command-line-re
     <value>Unable to find project '{0}'. Check that the project reference is valid and that the project file exists.</value>
   </data>
   <data name="Error_UnableToFindProjectInfo" xml:space="preserve">
-    <value>Unable to find project information for '{0}'. The project file may be invalid or missing targets required for restore.</value>
+    <value>Unable to find project information for '{0}'. Inside Visual Studio, this may be because the project is unloaded or not part of current solution. Otherwise the project file may be invalid or missing targets required for restore.</value>
   </data>
   <data name="FoundVersionsInSource" xml:space="preserve">
     <value>Found {0} version(s) in {1} [ Nearest version: {2} ]</value>
@@ -697,5 +698,180 @@ For more information, visit http://docs.nuget.org/docs/reference/command-line-re
   </data>
   <data name="Warning_FileExcludedByDefault" xml:space="preserve">
     <value>File '{0}' was not added to the package. Files and folders starting with '.' or ending with '.nupkg' are excluded by default. To include this file, use -NoDefaultExcludes from the commandline</value>
+  </data>
+  <data name="LocalsCommand_ClearingNuGetPluginsCache" xml:space="preserve">
+    <value>Clearing NuGet plugins cache: {0}</value>
+    <comment>{0}: Plugins cache path</comment>
+  </data>
+  <data name="Error_InvalidSymbolPackageFormat" xml:space="preserve">
+    <value>The provided SymbolPackageFormat value {0} is invalid. Allowed values : 'snupkg', 'symbols.nupkg'.</value>
+    <comment>Do not localize snupkg and symbols.nupkg</comment>
+  </data>
+  <data name="Error_RestoreInLockedMode" xml:space="preserve">
+    <value>The packages lock file is inconsistent with the project dependencies so restore can't be run in locked mode. Please disable RestoreLockedMode MSBuild property or pass explicit --force-evaluate flag to run restore to update the lock file.</value>
+  </data>
+  <data name="Error_PackageValidationFailed" xml:space="preserve">
+    <value>The package {0} sha512 validation failed. The package is different than the last restore.</value>
+    <comment>{0} - package id and version</comment>
+  </data>
+  <data name="Error_InvalidLockFileInput" xml:space="preserve">
+    <value>Invalid restore input where RestorePackagesWithLockFile property is set to false and also exist a packages lock file at {0}.</value>
+    <comment>{0} - packages lock file path</comment>
+  </data>
+  <data name="Log_WritingPackagesLockFile" xml:space="preserve">
+    <value>Writing packages lock file at disk. Path: {0}</value>
+    <comment>{0} - Path to packages lock file</comment>
+  </data>
+  <data name="Error_NoMatchingCertificate" xml:space="preserve">
+    <value>The package signature did not match any of the allowed certificate fingerprints.</value>
+  </data>
+  <data name="Error_CannotTrustOwnersForAuthor" xml:space="preserve">
+    <value>Trusted owners are not supported in trusted author items.</value>
+  </data>
+  <data name="Error_InvalidCombinationOfArguments" xml:space="preserve">
+    <value>Invalid combination of arguments.</value>
+  </data>
+  <data name="Error_NoSignatureTrustedForPackage" xml:space="preserve">
+    <value>No signature to be trusted was specified for the package '{0}'. Please specify either Author or Repository.</value>
+    <comment>0 - Package path</comment>
+  </data>
+  <data name="Error_NoSourcesInformation" xml:space="preserve">
+    <value>Unable to get package sources information.</value>
+  </data>
+  <data name="Error_NotSupportedHashAlgorithm" xml:space="preserve">
+    <value>'{0}' is not a supported hash algorithm.</value>
+    <comment>0 - hash algorithm</comment>
+  </data>
+  <data name="Error_PropertyCannotBeNullOrEmpty" xml:space="preserve">
+    <value>Property '{0}' should not be null or empty.</value>
+    <comment>0 - property name</comment>
+  </data>
+  <data name="Error_ServiceIndexShouldBeHttps" xml:space="preserve">
+    <value>The repository service index '{0}' is not a valid HTTPS url.</value>
+    <comment>0 - service index</comment>
+  </data>
+  <data name="Error_UnavailableSource" xml:space="preserve">
+    <value>Source '{0}' does not exist or cannot be retrived.</value>
+    <comment>0 - source name</comment>
+  </data>
+  <data name="NoTrustedSigners" xml:space="preserve">
+    <value>There are no trusted signers.</value>
+  </data>
+  <data name="NoTrustedSignersMatching" xml:space="preserve">
+    <value>No trusted signers with the name: '{0}' were found.</value>
+    <comment>0 - trusted signer name</comment>
+  </data>
+  <data name="RegsiteredTrustedSigners" xml:space="preserve">
+    <value>Registered trusted signers:</value>
+  </data>
+  <data name="SuccessfullyRemovedTrustedSigner" xml:space="preserve">
+    <value>Successfully removed the trusted signer '{0}'.</value>
+    <comment>0 - trusted signer name</comment>
+  </data>
+  <data name="TrustedSignerLogCertificates" xml:space="preserve">
+    <value>Certificate fingerprint(s):</value>
+  </data>
+  <data name="TrustedSignerLogCertificateSummaryAllowUntrustedRoot" xml:space="preserve">
+    <value>[U] {0} - {1}</value>
+    <comment>Do not localize
+
+0 - fingerprint algorithm
+1 - fingerprint</comment>
+  </data>
+  <data name="TrustedSignerLogCertificateSummaryUnallowUntrustedRoot" xml:space="preserve">
+    <value>{0} - {1}</value>
+    <comment>Do not localize
+
+0 - fingerprint algorithm
+1 - fingerprint</comment>
+  </data>
+  <data name="TrustedSignerLogOwners" xml:space="preserve">
+    <value>Trusted owners: {0}</value>
+    <comment>0 - semi-colon separated owners list</comment>
+  </data>
+  <data name="TrustedSignerLogServiceIndex" xml:space="preserve">
+    <value>Service Index: {0}</value>
+    <comment>0 - service index</comment>
+  </data>
+  <data name="TrustedSignerLogTitle" xml:space="preserve">
+    <value>{0} [{1}]</value>
+    <comment>0 - signer name
+1 - signer type
+</comment>
+  </data>
+  <data name="ArgumentCannotBeNullOrEmpty" xml:space="preserve">
+    <value>The argument cannot be null or empty.</value>
+  </data>
+  <data name="Error_AuthorTrustExpectedAuthorSignature" xml:space="preserve">
+    <value>Unable to add trusted author. The package is not author signed.</value>
+  </data>
+  <data name="Error_InvalidCertificateInformationFromServer" xml:space="preserve">
+    <value>Invalid certificate information from the service index '{0}'.</value>
+    <comment>0 - service index</comment>
+  </data>
+  <data name="Error_PackageNotSigned" xml:space="preserve">
+    <value>The package is not signed.</value>
+  </data>
+  <data name="Error_RepoTrustExpectedRepoSignature" xml:space="preserve">
+    <value>Unable to add trusted repository. The package is not repository signed or countersigned.</value>
+  </data>
+  <data name="Error_TrustedAuthorNoOwners" xml:space="preserve">
+    <value>A trusted author cannot have owners.</value>
+  </data>
+  <data name="Error_TrustedRepoAlreadyExists" xml:space="preserve">
+    <value>A trusted repository with the service index '{0}' already exists.</value>
+    <comment>0 - trusted repository name</comment>
+  </data>
+  <data name="Error_TrustedRepositoryDoesNotExist" xml:space="preserve">
+    <value>A trusted repository '{0}' does not exist.</value>
+    <comment>0 - trusted repository name</comment>
+  </data>
+  <data name="Error_TrustedSignerAlreadyExists" xml:space="preserve">
+    <value>A trusted signer '{0}' already exists.</value>
+    <comment>0 - trusted signer name</comment>
+  </data>
+  <data name="Error_UnsupportedTrustTarget" xml:space="preserve">
+    <value>The trust target '{0}' is unsupported.</value>
+    <comment>0 - VerificationTarget</comment>
+  </data>
+  <data name="UnsupportedHashAlgorithm" xml:space="preserve">
+    <value>The hash algorithm is unsupported:  '{0}'.</value>
+    <comment>0 - hash algorithm</comment>
+  </data>
+  <data name="Error_EmptyCertificateListInRepository" xml:space="preserve">
+    <value>The repository with the service index '{0}' does not list any trusted certificates.</value>
+    <comment>0 - service index</comment>
+  </data>
+  <data name="Error_CouldNotAdd" xml:space="preserve">
+    <value>Could not add the trusted signer: {0}</value>
+    <comment>0 - Reason</comment>
+  </data>
+  <data name="Error_CouldNotList" xml:space="preserve">
+    <value>Could not list the trusted signers: {0}</value>
+    <comment>0 - Reason</comment>
+  </data>
+  <data name="Error_CouldNotRemove" xml:space="preserve">
+    <value>Could not remove the trusted signer: {0}</value>
+    <comment>0 - Reason</comment>
+  </data>
+  <data name="Error_CouldNotSync" xml:space="preserve">
+    <value>Could not sync the trusted repository: {0}</value>
+    <comment>0 - Reason</comment>
+  </data>
+  <data name="SuccessfullUpdatedTrustedSigner" xml:space="preserve">
+    <value>Successfully updated the trusted signer '{0}'.</value>
+    <comment>0 - name</comment>
+  </data>
+  <data name="SuccessfullyAddedTrustedAuthor" xml:space="preserve">
+    <value>Successfully added a trusted author '{0}'.</value>
+    <comment>0 - name</comment>
+  </data>
+  <data name="SuccessfullyAddedTrustedRepository" xml:space="preserve">
+    <value>Successfully added a trusted repository '{0}'.</value>
+    <comment>0 - name</comment>
+  </data>
+  <data name="SuccessfullySynchronizedTrustedRepository" xml:space="preserve">
+    <value>Successfully synchronized the trusted repository '{0}'.</value>
+    <comment>0 - name</comment>
   </data>
 </root>
